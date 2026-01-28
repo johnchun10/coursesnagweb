@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CourseSnag</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-section">
+        <h1 class="logo">CourseSnag</h1>
+        <p class="logo-subtitle">Get alerted when classes open</p>
+      </div>
+      <div class="header-controls">
+        <div class="roster-display">
+          <span id="roster-label">Loading roster...</span>
+        </div>
+        <button id="refresh-btn" class="btn btn-secondary" disabled>
+          Refresh
+        </button>
+        <span id="last-updated" class="timestamp"></span>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Search Panel -->
+      <section class="panel search-panel">
+        <h2>Search Classes</h2>
+        <div class="search-controls">
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Subject required (e.g. CS 2110, MATH, INFO 1300)"
+          >
+        </div>
+        <div id="search-status" class="status-message"></div>
+        <div id="search-results" class="results-list">
+          <p class="empty-state">Enter a subject code to search (e.g. CS, MATH, INFO)</p>
+        </div>
+      </section>
+
+      <!-- Tracked Panel -->
+      <section class="panel tracked-panel">
+        <div class="tracked-header">
+          <h2>Tracked Sections <span id="tracked-count" class="badge">0</span></h2>
+          <div id="tracked-status" class="status-indicator"></div>
+        </div>
+        <div id="tracked-list" class="tracked-list">
+          <p class="empty-state">No sections tracked yet</p>
+        </div>
+
+        <div class="tracked-footer">
+          <!-- Settings -->
+          <div class="settings-section">
+            <h3>Alerts</h3>
+
+            <div class="settings-group">
+              <label class="settings-label">Refresh interval</label>
+              <div class="segmented" id="polling-segmented" role="radiogroup" aria-label="Refresh interval">
+                <div class="segment-indicator" id="polling-indicator" aria-hidden="true"></div>
+                <button class="segment-btn" type="button" data-interval="10" aria-pressed="false">10s</button>
+                <button class="segment-btn" type="button" data-interval="30" aria-pressed="false">30s</button>
+                <button class="segment-btn" type="button" data-interval="60" aria-pressed="false">60s</button>
+                <button class="segment-btn" type="button" data-interval="300" aria-pressed="false">5m</button>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-row">
+                <label class="toggle-label">
+                  <input type="checkbox" id="sound-toggle" checked>
+                  <span>Sound</span>
+                </label>
+                <button id="test-sound-btn" class="btn btn-small btn-secondary">Test</button>
+              </div>
+              <div class="settings-row">
+                <label class="toggle-label">
+                  <input type="checkbox" id="notify-toggle" checked>
+                  <span>Browser notifications</span>
+                </label>
+                <button id="test-notify-btn" class="btn btn-small btn-secondary">Test</button>
+              </div>
+              <div class="settings-row">
+                <span id="notify-status" class="notify-status"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Alert Banner (hidden by default, positioned over tracked item) -->
+          <div id="alert-banner" class="alert-banner hidden">
+            <span id="alert-message">Section is now OPEN!</span>
+            <div class="alert-actions">
+              <button id="dismiss-5min-btn" class="btn btn-small">Dismiss 5m</button>
+              <button id="untrack-alert-btn" class="btn btn-small">Untrack</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Data from <a href="https://classes.cornell.edu" target="_blank">Cornell Class Roster</a>. Made with 🤖 by <a href="https://github.com/johnchun10" target="_blank">johnchun10</a></p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
