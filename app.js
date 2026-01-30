@@ -571,9 +571,6 @@
     els.trackedList.innerHTML = state.trackedSections.map(item => {
       const statusClass = getStatusClass(item.lastStatus);
       const statusLabel = getStatusLabel(item.lastStatus);
-      const lastChecked = item.lastCheckedAt
-        ? formatTime(new Date(item.lastCheckedAt))
-        : 'Not checked';
       const trackedKey = `${item.roster}:${item.classNbr}`;
 
       return `
@@ -584,10 +581,6 @@
               Section ${item.section}
               <span class="badge badge-component">${item.ssrComponent}</span>
               <span class="badge badge-status ${statusClass}">${statusLabel}</span>
-            </div>
-            <div class="tracked-meta">
-              <span>${item.roster}</span>
-              <span>Last checked: ${lastChecked}</span>
             </div>
           </div>
           <div class="tracked-actions">
@@ -923,9 +916,13 @@
 
         for (const item of group.items) {
           const newStatus = statusIndex.get(item.classNbr);
-          if (newStatus === undefined) continue;
+          if (newStatus === undefined) {
+            console.warn(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section} (classNbr ${item.classNbr}) not found in API response`);
+            continue;
+          }
 
           const oldStatus = item.lastStatus;
+          console.log(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section}: ${oldStatus} → ${newStatus}`);
 
           // Detect transition to OPEN
           if (oldStatus !== 'O' && newStatus === 'O') {
@@ -944,17 +941,24 @@
       els.trackedStatus.textContent = '';
       els.trackedStatus.classList.remove('loading');
 
-      // Trigger alert for newly opened sections
+      // Trigger full alert (sound + notification + overlay) for newly opened sections
       if (newlyOpened.length > 0) {
         triggerOpenAlert(newlyOpened);
       }
 
-      // Also show alerts for sections that are already open (in case alert was cleared on refresh)
-      const currentlyOpen = state.trackedSections.filter(item =>
-        item.lastStatus === 'O' && !isAlertDismissed(`${item.roster}:${item.classNbr}`)
-      );
-      if (currentlyOpen.length > 0) {
-        triggerOpenAlert(currentlyOpen);
+      // Re-show visual overlays for already-open sections (no sound/notification replay)
+      // Exclude newly opened (already handled above) and dismissed sections
+      const newlyOpenedSet = new Set(newlyOpened.map(i => `${i.roster}:${i.classNbr}`));
+      const currentlyOpen = state.trackedSections.filter(item => {
+        const key = `${item.roster}:${item.classNbr}`;
+        return item.lastStatus === 'O' && !isAlertDismissed(key) && !newlyOpenedSet.has(key);
+      });
+      for (const item of currentlyOpen) {
+        const trackedKey = `${item.roster}:${item.classNbr}`;
+        const trackedElement = document.querySelector(`[data-tracked-key="${trackedKey}"]`);
+        if (trackedElement) {
+          showAlertOverItem(item, trackedElement, trackedKey);
+        }
       }
     } catch (error) {
       console.error('Refresh failed:', error);
@@ -993,6 +997,11 @@
 
   function onRefreshClick() {
     refreshTrackedSections();
+    // Also refresh search results if there's an active search
+    if (state.cachedSubject) {
+      state.cachedSubject = null; // Force re-fetch from API
+      performSearch();
+    }
   }
 
   function onSoundToggle() {
