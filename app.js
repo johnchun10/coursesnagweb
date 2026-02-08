@@ -11,6 +11,7 @@
   const DEBOUNCE_DELAY_MS = 400;
   const RATE_LIMIT_MS = 1000; // 1 request per second
   const POLLING_OPTIONS = [10, 30, 60, 300];
+  const DEBUG = false;
 
   // ============================================
   // State
@@ -30,10 +31,12 @@
     trackedKeySet: new Set(),
     expandedCourses: new Set(),
     lastRequestTime: 0,
+    requestQueue: Promise.resolve(),
     pollingTimer: null,
     searchDebounceTimer: null,
     isSearching: false,
     isRefreshing: false,
+    searchRequestSeq: 0,
     // Error states
     initError: null,
     searchError: null,
@@ -57,9 +60,11 @@
     lastUpdated: document.getElementById('last-updated'),
     searchStatus: document.getElementById('search-status'),
     searchResults: document.getElementById('search-results'),
+    searchPanel: document.querySelector('.search-panel'),
     trackedStatus: document.getElementById('tracked-status'),
     trackedList: document.getElementById('tracked-list'),
-    trackedCount: document.getElementById('tracked-count'),
+    tabOpenNotice: document.getElementById('tab-open-notice'),
+    tabOpenNoticeText: document.getElementById('tab-open-notice-text'),
     // Settings elements
     soundToggle: document.getElementById('sound-toggle'),
     testSoundBtn: document.getElementById('test-sound-btn'),
@@ -180,9 +185,13 @@
   // ============================================
   // Browser Notifications
   // ============================================
+  function hasNotificationSupport() {
+    return 'Notification' in window;
+  }
+
   function updateNotifyStatus() {
-    if (!('Notification' in window)) {
-      els.notifyStatus.textContent = 'Not supported';
+    if (!hasNotificationSupport()) {
+      els.notifyStatus.textContent = '(Not supported)';
       els.notifyStatus.className = 'notify-status denied';
       els.notifyToggle.disabled = true;
       return;
@@ -190,19 +199,19 @@
 
     const permission = Notification.permission;
     if (permission === 'granted') {
-      els.notifyStatus.textContent = 'Enabled';
+      els.notifyStatus.textContent = '(Enabled)';
       els.notifyStatus.className = 'notify-status granted';
     } else if (permission === 'denied') {
-      els.notifyStatus.textContent = 'Blocked';
+      els.notifyStatus.textContent = '(Blocked)';
       els.notifyStatus.className = 'notify-status denied';
     } else {
-      els.notifyStatus.textContent = 'Click to enable';
+      els.notifyStatus.textContent = '(Click to enable)';
       els.notifyStatus.className = 'notify-status';
     }
   }
 
   async function requestNotificationPermission() {
-    if (!('Notification' in window)) return false;
+    if (!hasNotificationSupport()) return false;
 
     if (Notification.permission === 'granted') {
       return true;
@@ -219,6 +228,7 @@
 
   function showNotification(title, body) {
     if (!state.notifyEnabled) return;
+    if (!hasNotificationSupport()) return;
     if (Notification.permission !== 'granted') return;
 
     try {
@@ -238,10 +248,14 @@
   // ============================================
   function triggerOpenAlert(openedSections) {
     if (openedSections.length === 0) return;
+    const actionableSections = [];
 
     // For each opened section, show alert over it
     for (const item of openedSections) {
       const trackedKey = `${item.roster}:${item.classNbr}`;
+      if (!state.trackedKeySet.has(trackedKey)) {
+        continue;
+      }
 
       // Skip if already dismissed for 5 minutes
       if (isAlertDismissed(trackedKey)) {
@@ -256,17 +270,19 @@
       if (trackedElement) {
         // Show alert over this item
         showAlertOverItem(item, trackedElement, trackedKey);
+        actionableSections.push(item);
       }
     }
 
     // Play sound once if any alerts shown
-    if (openedSections.length > 0 && state.soundEnabled) {
+    if (actionableSections.length > 0 && state.soundEnabled) {
       startAlertSound();
     }
 
     // Show notification if enabled
-    if (openedSections.length > 0 && state.notifyEnabled) {
-      const names = openedSections.map(s => `${s.subject} ${s.catalogNbr}`);
+    if (actionableSections.length > 0 && state.notifyEnabled) {
+      const names = actionableSections
+        .map(s => `${s.subject} ${s.catalogNbr}`);
       const message = names.length === 1
         ? `${names[0]} is now OPEN!`
         : `${names.length} sections are now OPEN!`;
@@ -275,27 +291,40 @@
   }
 
   function showAlertOverItem(item, element, trackedKey) {
+    const existingAlert = document.getElementById(`alert-${trackedKey}`);
+    if (existingAlert) return;
+
     // Clone the alert banner and attach it to the tracked item
     const alertClone = els.alertBanner.cloneNode(true);
     alertClone.id = `alert-${trackedKey}`;
     alertClone.classList.remove('hidden');
+    alertClone.dataset.alertKey = trackedKey;
 
     const messageEl = alertClone.querySelector('#alert-message');
-    messageEl.textContent = `${item.subject} ${item.catalogNbr} ${item.section}`;
+    if (messageEl) {
+      messageEl.textContent = `${item.subject} ${item.catalogNbr} ${item.section}`;
+      messageEl.removeAttribute('id');
+    }
 
     // Update button handlers for this specific alert
     const dismiss5minBtn = alertClone.querySelector('#dismiss-5min-btn');
     const untrackBtn = alertClone.querySelector('#untrack-alert-btn');
 
-    dismiss5minBtn.onclick = () => {
-      dismissAlertFor5Minutes(trackedKey);
-      alertClone.remove();
-    };
+    if (dismiss5minBtn) {
+      dismiss5minBtn.removeAttribute('id');
+      dismiss5minBtn.onclick = () => {
+        dismissAlertFor5Minutes(trackedKey);
+        alertClone.remove();
+      };
+    }
 
-    untrackBtn.onclick = () => {
-      untrack(item.classNbr);
-      alertClone.remove();
-    };
+    if (untrackBtn) {
+      untrackBtn.removeAttribute('id');
+      untrackBtn.onclick = () => {
+        untrack(item.classNbr, item.roster);
+        alertClone.remove();
+      };
+    }
 
     element.appendChild(alertClone);
   }
@@ -306,7 +335,9 @@
     saveDismissedAlerts();
 
     // Stop alert sound when dismissing
-    stopAlertSound();
+    if (!hasActiveUndismissedOpenAlerts()) {
+      stopAlertSound();
+    }
 
     // Also clear it from memory after 5 minutes
     setTimeout(() => {
@@ -332,6 +363,13 @@
     els.alertBanner.classList.add('hidden');
   }
 
+  function hasActiveUndismissedOpenAlerts() {
+    return state.trackedSections.some(item => {
+      const key = `${item.roster}:${item.classNbr}`;
+      return item.lastStatus === 'O' && !isAlertDismissed(key);
+    });
+  }
+
   // ============================================
   // Settings Management
   // ============================================
@@ -343,6 +381,9 @@
     });
     state.soundEnabled = settings.soundEnabled;
     state.notifyEnabled = settings.notifyEnabled;
+    if (!hasNotificationSupport()) {
+      state.notifyEnabled = false;
+    }
     state.pollingIntervalSec = POLLING_OPTIONS.includes(settings.pollingIntervalSec)
       ? settings.pollingIntervalSec
       : 60;
@@ -383,26 +424,32 @@
   }
 
   async function rateLimitedFetch(url) {
-    const now = Date.now();
-    const timeSinceLast = now - state.lastRequestTime;
+    const task = async () => {
+      const now = Date.now();
+      const timeSinceLast = now - state.lastRequestTime;
 
-    if (timeSinceLast < RATE_LIMIT_MS) {
-      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_MS - timeSinceLast));
-    }
+      if (timeSinceLast < RATE_LIMIT_MS) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_MS - timeSinceLast));
+      }
 
-    state.lastRequestTime = Date.now();
+      state.lastRequestTime = Date.now();
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
 
-    const data = await response.json();
-    if (data.status !== 'success') {
-      throw new Error(data.message || 'API returned error status');
-    }
+      const data = await response.json();
+      if (data.status !== 'success') {
+        throw new Error(data.message || 'API returned error status');
+      }
 
-    return data.data;
+      return data.data;
+    };
+
+    const taskPromise = state.requestQueue.then(task, task);
+    state.requestQueue = taskPromise.catch(() => {});
+    return taskPromise;
   }
 
   // ============================================
@@ -508,8 +555,8 @@
       const isExpanded = state.expandedCourses.has(courseId);
 
       html += `
-        <div class="course-card ${isExpanded ? 'expanded' : ''}" data-course-id="${courseId}">
-          <div class="course-header" onclick="app.toggleCourse('${courseId}')">
+        <div class="course-card ${isExpanded ? 'expanded' : ''}" data-course-id="${escapeAttr(courseId)}">
+          <div class="course-header" data-action="toggle-course" data-course-id="${escapeAttr(courseId)}">
             <div class="course-header-info">
               <div class="course-title">${escapeHtml(course.titleShort || course.titleLong || 'Untitled')}</div>
               <div class="course-code">${course.subject} ${course.catalogNbr} (${sections.length} section${sections.length !== 1 ? 's' : ''})</div>
@@ -550,7 +597,15 @@
         <div class="section-actions">
           <button
             class="btn btn-small ${isTracked ? 'btn-secondary' : 'btn-primary'}"
-            onclick="app.toggleTrack('${section.classNbr}', '${course.subject}', '${course.catalogNbr}', '${escapeHtml(course.titleShort || course.titleLong || '')}', '${section.section}', '${section.ssrComponent}', '${section.openStatus}')"
+            type="button"
+            data-action="toggle-track"
+            data-class-nbr="${escapeAttr(section.classNbr)}"
+            data-subject="${escapeAttr(course.subject)}"
+            data-catalog-nbr="${escapeAttr(course.catalogNbr)}"
+            data-title="${escapeAttr(course.titleShort || course.titleLong || '')}"
+            data-section="${escapeAttr(section.section)}"
+            data-ssr-component="${escapeAttr(section.ssrComponent)}"
+            data-open-status="${escapeAttr(section.openStatus)}"
             ${isTracked ? 'disabled' : ''}
           >
             ${isTracked ? 'Tracked' : 'Track'}
@@ -561,7 +616,7 @@
   }
 
   function renderTrackedList() {
-    els.trackedCount.textContent = state.trackedSections.length;
+    updateTabOpenNotice();
 
     if (state.trackedSections.length === 0) {
       els.trackedList.innerHTML = '<p class="empty-state">No sections tracked yet</p>';
@@ -584,13 +639,33 @@
             </div>
           </div>
           <div class="tracked-actions">
-            <button class="btn-remove" onclick="app.untrack('${item.classNbr}')" title="Remove">
+            <button
+              type="button"
+              class="btn-remove"
+              data-action="untrack"
+              data-class-nbr="${escapeAttr(item.classNbr)}"
+              data-roster="${escapeAttr(item.roster)}"
+              title="Remove"
+            >
               &times;
             </button>
           </div>
         </div>
       `;
     }).join('');
+  }
+
+  function updateTabOpenNotice() {
+    if (!els.tabOpenNotice || !els.tabOpenNoticeText) return;
+
+    const trackedCount = state.trackedSections.length;
+    if (trackedCount === 0) {
+      els.tabOpenNotice.classList.add('hidden');
+      return;
+    }
+
+    els.tabOpenNoticeText.textContent = 'Keep this tab open to get alerted.';
+    els.tabOpenNotice.classList.remove('hidden');
   }
 
   function getStatusClass(status) {
@@ -619,6 +694,15 @@
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   function setSearchStatus(message, type = '') {
@@ -676,7 +760,13 @@
   }
 
   async function performSearch() {
-    const parsed = parseSearchInput(els.searchInput.value);
+    const inputValue = els.searchInput.value;
+    const normalizedInput = inputValue.trim().toUpperCase();
+    const requestSeq = ++state.searchRequestSeq;
+    const isCurrentSearch = () =>
+      requestSeq === state.searchRequestSeq &&
+      els.searchInput.value.trim().toUpperCase() === normalizedInput;
+    const parsed = parseSearchInput(inputValue);
 
     if (!parsed) {
       state.searchResults = [];
@@ -699,9 +789,12 @@
 
       try {
         // Always fetch ALL classes for the subject (no query parameter)
-        state.cachedClasses = await searchClasses(state.currentRoster, parsed.subject, '');
+        const classes = await searchClasses(state.currentRoster, parsed.subject, '');
+        if (!isCurrentSearch()) return;
+        state.cachedClasses = classes;
         state.cachedSubject = parsed.subject;
       } catch (error) {
+        if (!isCurrentSearch()) return;
         console.error('Search failed:', error);
         state.searchError = getUserFriendlyError(error, 'Subject');
         setSearchStatus('');
@@ -713,8 +806,11 @@
         return;
       }
 
+      if (!isCurrentSearch()) return;
       state.isSearching = false;
     }
+
+    if (!isCurrentSearch()) return;
 
     // Clear any previous search error on success
     state.searchError = null;
@@ -834,11 +930,13 @@
     }
   }
 
-  function untrack(classNbr) {
+  function untrack(classNbr, roster = null) {
     const classNbrStr = String(classNbr);
     const removed = [];
     state.trackedSections = state.trackedSections.filter(t => {
-      if (t.classNbr === classNbrStr) {
+      const matchesClassNbr = t.classNbr === classNbrStr;
+      const matchesRoster = !roster || t.roster === roster;
+      if (matchesClassNbr && matchesRoster) {
         removed.push(`${t.roster}:${String(t.classNbr)}`);
         return false;
       }
@@ -859,11 +957,7 @@
     }
 
     // Stop alert sound if it's playing (no more tracked open sections with active alerts)
-    const hasActiveAlerts = state.trackedSections.some(item => {
-      const key = `${item.roster}:${item.classNbr}`;
-      return item.lastStatus === 'O' && !isAlertDismissed(key);
-    });
-    if (!hasActiveAlerts) {
+    if (!hasActiveUndismissedOpenAlerts()) {
       stopAlertSound();
     }
 
@@ -917,12 +1011,16 @@
         for (const item of group.items) {
           const newStatus = statusIndex.get(item.classNbr);
           if (newStatus === undefined) {
-            console.warn(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section} (classNbr ${item.classNbr}) not found in API response`);
+            if (DEBUG) {
+              console.warn(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section} (classNbr ${item.classNbr}) not found in API response`);
+            }
             continue;
           }
 
           const oldStatus = item.lastStatus;
-          console.log(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section}: ${oldStatus} → ${newStatus}`);
+          if (DEBUG) {
+            console.log(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section}: ${oldStatus} → ${newStatus}`);
+          }
 
           // Detect transition to OPEN
           if (oldStatus !== 'O' && newStatus === 'O') {
@@ -942,13 +1040,20 @@
       els.trackedStatus.classList.remove('loading');
 
       // Trigger full alert (sound + notification + overlay) for newly opened sections
-      if (newlyOpened.length > 0) {
-        triggerOpenAlert(newlyOpened);
+      const activeTrackedKeys = new Set(
+        state.trackedSections.map(item => `${item.roster}:${item.classNbr}`)
+      );
+      const actionableNewlyOpened = newlyOpened.filter(item =>
+        activeTrackedKeys.has(`${item.roster}:${item.classNbr}`)
+      );
+
+      if (actionableNewlyOpened.length > 0) {
+        triggerOpenAlert(actionableNewlyOpened);
       }
 
       // Re-show visual overlays for already-open sections (no sound/notification replay)
       // Exclude newly opened (already handled above) and dismissed sections
-      const newlyOpenedSet = new Set(newlyOpened.map(i => `${i.roster}:${i.classNbr}`));
+      const newlyOpenedSet = new Set(actionableNewlyOpened.map(i => `${i.roster}:${i.classNbr}`));
       const currentlyOpen = state.trackedSections.filter(item => {
         const key = `${item.roster}:${item.classNbr}`;
         return item.lastStatus === 'O' && !isAlertDismissed(key) && !newlyOpenedSet.has(key);
@@ -995,6 +1100,71 @@
     debounceSearch();
   }
 
+  function onSearchShortcutClick(event) {
+    const shortcutBtn = event.target.closest('button[data-action="set-subject"]');
+    if (!shortcutBtn || !els.searchPanel || !els.searchPanel.contains(shortcutBtn)) return;
+
+    const subject = (shortcutBtn.dataset.subject || '').trim().toUpperCase();
+    if (!subject) return;
+
+    els.searchInput.value = subject;
+    els.searchInput.focus();
+    setSearchStatus('');
+    clearTimeout(state.searchDebounceTimer);
+    performSearch();
+  }
+
+  function onGlobalKeydown(event) {
+    if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (
+      target &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    els.searchInput.focus();
+    els.searchInput.select();
+  }
+
+  function onSearchResultsClick(event) {
+    const courseHeader = event.target.closest('[data-action="toggle-course"]');
+    if (courseHeader && els.searchResults.contains(courseHeader)) {
+      const courseId = courseHeader.dataset.courseId;
+      if (courseId) {
+        toggleCourse(courseId);
+      }
+      return;
+    }
+
+    const trackBtn = event.target.closest('button[data-action="toggle-track"]');
+    if (!trackBtn || !els.searchResults.contains(trackBtn) || trackBtn.disabled) return;
+
+    const classNbr = trackBtn.dataset.classNbr;
+    const subject = trackBtn.dataset.subject;
+    const catalogNbr = trackBtn.dataset.catalogNbr;
+    const title = trackBtn.dataset.title || '';
+    const section = trackBtn.dataset.section;
+    const ssrComponent = trackBtn.dataset.ssrComponent;
+    const openStatus = trackBtn.dataset.openStatus;
+    if (!classNbr || !subject || !catalogNbr || !section || !ssrComponent || !openStatus) return;
+
+    toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus);
+  }
+
+  function onTrackedListClick(event) {
+    const untrackBtn = event.target.closest('button[data-action="untrack"]');
+    if (!untrackBtn || !els.trackedList.contains(untrackBtn)) return;
+
+    const classNbr = untrackBtn.dataset.classNbr;
+    const roster = untrackBtn.dataset.roster || null;
+    if (!classNbr) return;
+
+    untrack(classNbr, roster);
+  }
+
   function onRefreshClick() {
     refreshTrackedSections();
     // Also refresh search results if there's an active search
@@ -1034,6 +1204,11 @@
   }
 
   async function onTestNotify() {
+    if (!hasNotificationSupport()) {
+      alert('Notifications are not supported in this browser.');
+      return;
+    }
+
     if (Notification.permission === 'default') {
       // Request permission first if not yet granted
       const granted = await requestNotificationPermission();
@@ -1101,7 +1276,13 @@
   async function init() {
     // Attach event listeners
     els.searchInput.addEventListener('input', onSearchInput);
+    els.searchResults.addEventListener('click', onSearchResultsClick);
     els.refreshBtn.addEventListener('click', onRefreshClick);
+    els.trackedList.addEventListener('click', onTrackedListClick);
+    if (els.searchPanel) {
+      els.searchPanel.addEventListener('click', onSearchShortcutClick);
+    }
+    document.addEventListener('keydown', onGlobalKeydown);
 
     // Settings event listeners
     els.soundToggle.addEventListener('change', onSoundToggle);
@@ -1110,7 +1291,7 @@
     els.testNotifyBtn.addEventListener('click', onTestNotify);
     // Allow clicking on notify status to request permission
     els.notifyStatus.addEventListener('click', async () => {
-      if (Notification.permission === 'default') {
+      if (hasNotificationSupport() && Notification.permission === 'default') {
         await requestNotificationPermission();
       }
     });
@@ -1125,7 +1306,7 @@
     await loadRosters();
 
     // Request notification permission on first visit if enabled
-    if (state.notifyEnabled && Notification.permission === 'default') {
+    if (state.notifyEnabled && hasNotificationSupport() && Notification.permission === 'default') {
       await requestNotificationPermission();
     }
 
