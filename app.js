@@ -185,17 +185,37 @@
   // ============================================
   // Browser Notifications
   // ============================================
+  function isMobileBrowser() {
+    const ua = navigator.userAgent || '';
+    const uaDataMobile =
+      typeof navigator.userAgentData === 'object' &&
+      typeof navigator.userAgentData.mobile === 'boolean'
+        ? navigator.userAgentData.mobile
+        : false;
+
+    return (
+      uaDataMobile ||
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua)
+    );
+  }
+
   function hasNotificationSupport() {
-    return 'Notification' in window;
+    return !isMobileBrowser() && 'Notification' in window;
   }
 
   function updateNotifyStatus() {
     if (!hasNotificationSupport()) {
-      els.notifyStatus.textContent = '(Not supported)';
+      els.notifyStatus.textContent = isMobileBrowser()
+        ? '(Disabled on mobile)'
+        : '(Not supported)';
       els.notifyStatus.className = 'notify-status denied';
       els.notifyToggle.disabled = true;
+      els.testNotifyBtn.disabled = true;
       return;
     }
+
+    els.notifyToggle.disabled = false;
+    els.testNotifyBtn.disabled = false;
 
     const permission = Notification.permission;
     if (permission === 'granted') {
