@@ -386,9 +386,11 @@ input[type='text']::placeholder {
 }
 
 .results-list {
-  height: clamp(300px, calc(100vh - 440px), 430px);
+  height: clamp(300px, calc(100vh - 440px), 600px);
   overflow-y: auto;
-  padding: 0.2rem 0.42rem 0.3rem 0.28rem;
+  padding: 0.2rem 0.42rem 1.2rem 0.28rem;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent 100%);
 }
 
 .tracked-list {
@@ -719,12 +721,12 @@ input[type='text']::placeholder {
   top: 3px;
   bottom: 3px;
   left: 3px;
-  width: calc(100% / var(--segment-count));
+  width: calc((100% - 6px) / var(--segment-count));
   transform: translateX(calc(100% * var(--segment-index)));
   border-radius: 9px;
-  background: linear-gradient(150deg, #fff, #f2e5d8);
+  background: #fff;
   border: 1px solid rgba(120, 76, 56, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgba(100, 61, 42, 0.1);
   transition: transform 0.22s cubic-bezier(0.36, 1.4, 0.55, 1);
 }
 
@@ -931,7 +933,7 @@ input[type='text']::placeholder {
   }
 
   .results-list {
-    height: 450px;
+    height: 550px;
   }
 
   .tracked-list {
