@@ -486,7 +486,7 @@
   }
 
   async function searchClasses(roster, subject, query = '') {
-    let url = `${API_BASE}/search/classes.json?roster=${roster}&subject=${subject}`;
+    let url = `${API_BASE}/search/classes.json?roster=${roster}&subject=${subject}&_=${Date.now()}`;
     if (query) {
       url += `&q=${encodeURIComponent(query)}`;
     }
@@ -603,17 +603,26 @@
     return sections;
   }
 
+  function formatMeetingTimes(meetings) {
+    if (!meetings || meetings.length === 0) return '';
+    const mtg = meetings[0];
+    if (!mtg.timeStart || !mtg.timeEnd) return mtg.pattern ? mtg.pattern : 'TBA';
+    return `${mtg.pattern || ''} ${mtg.timeStart} - ${mtg.timeEnd}`.trim();
+  }
+
   function renderSectionRow(course, section) {
     const trackKey = `${state.currentRoster}:${String(section.classNbr)}`;
     const isTracked = state.trackedKeySet.has(trackKey);
     const statusClass = getStatusClass(section.openStatus);
     const statusLabel = getStatusLabel(section.openStatus);
+    const classTime = formatMeetingTimes(section.meetings);
 
     return `
       <div class="section-row">
         <span class="section-number">${section.section}</span>
         <span class="badge badge-component">${section.ssrComponent}</span>
         <span class="badge badge-status ${statusClass}">${statusLabel}</span>
+        <span class="section-time" title="${escapeAttr(classTime)}">${escapeHtml(classTime)}</span>
         <div class="section-actions">
           <button
             class="btn btn-small ${isTracked ? 'btn-secondary' : 'btn-primary'}"
@@ -626,6 +635,7 @@
             data-section="${escapeAttr(section.section)}"
             data-ssr-component="${escapeAttr(section.ssrComponent)}"
             data-open-status="${escapeAttr(section.openStatus)}"
+            data-class-time="${escapeAttr(classTime)}"
             ${isTracked ? 'disabled' : ''}
           >
             ${isTracked ? 'Tracked' : 'Track'}
@@ -656,6 +666,7 @@
               Section ${item.section}
               <span class="badge badge-component">${item.ssrComponent}</span>
               <span class="badge badge-status ${statusClass}">${statusLabel}</span>
+              ${item.classTime ? `<span class="tracked-time" title="${escapeAttr(item.classTime)}">${escapeHtml(item.classTime)}</span>` : ''}
             </div>
           </div>
           <div class="tracked-actions">
@@ -918,7 +929,7 @@
     saveToStorage('tracked', state.trackedSections);
   }
 
-  function toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus) {
+  function toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus, classTime = '') {
     const classNbrStr = String(classNbr);
     const trackKey = `${state.currentRoster}:${classNbrStr}`;
     const exists = state.trackedKeySet.has(trackKey);
@@ -933,6 +944,7 @@
       title,
       section,
       ssrComponent,
+      classTime,
       lastStatus: openStatus,
       lastCheckedAt: new Date().toISOString()
     };
@@ -1169,9 +1181,10 @@
     const section = trackBtn.dataset.section;
     const ssrComponent = trackBtn.dataset.ssrComponent;
     const openStatus = trackBtn.dataset.openStatus;
+    const classTime = trackBtn.dataset.classTime || '';
     if (!classNbr || !subject || !catalogNbr || !section || !ssrComponent || !openStatus) return;
 
-    toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus);
+    toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus, classTime);
   }
 
   function onTrackedListClick(event) {
