@@ -864,6 +864,21 @@ input[type='text']::placeholder {
   color: #725f55;
 }
 
+.footer-credits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.75rem;
+  align-items: center;
+}
+
+.footer-credits span {
+  text-align: right;
+}
+
+.footer-credits > a {
+  justify-self: start;
+}
+
 .footer a {
   color: var(--cornell);
   text-decoration: none;
