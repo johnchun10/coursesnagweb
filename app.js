@@ -41,7 +41,7 @@
     initError: null,
     searchError: null,
     // Settings
-    soundEnabled: true,
+    soundEnabled: false,
     notifyEnabled: true,
     pollingIntervalSec: 60,
     // Alert state
@@ -395,7 +395,7 @@
   // ============================================
   function loadSettings() {
     const settings = loadFromStorage('settings', {
-      soundEnabled: true,
+      soundEnabled: false,
       notifyEnabled: true,
       pollingIntervalSec: 60
     });

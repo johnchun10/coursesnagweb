@@ -17,17 +17,20 @@
 
   <div class="container">
     <header class="header">
-      <div class="logo-section">
-        <h1 class="logo">CourseSnag</h1>
-        <p class="logo-subtitle">Alerts you when your tracked courses open up.</p>
-      </div>
-
-      <div class="header-controls">
+      <div class="header-meta">
         <div class="roster-display">
           <span class="meta-label">Roster</span>
           <span id="roster-label">Loading roster...</span>
         </div>
         <span id="last-updated" class="timestamp"></span>
+      </div>
+
+      <div class="logo-section">
+        <h1 class="logo">CourseSnag</h1>
+        <p class="logo-subtitle">Faster than CourseGrab!</p>
+      </div>
+
+      <div class="header-actions">
         <button id="refresh-btn" class="btn btn-secondary" disabled>
           Refresh now
         </button>
@@ -105,7 +108,7 @@
             <div class="settings-group">
               <div class="settings-row">
                 <label class="toggle-label">
-                  <input type="checkbox" id="sound-toggle" checked>
+                  <input type="checkbox" id="sound-toggle">
                   <span>Sound alert</span>
                 </label>
                 <button id="test-sound-btn" class="btn btn-small btn-secondary">Test</button>
@@ -133,7 +136,7 @@
     </main>
 
     <footer class="footer">
-      <p>Data from <a href="https://classes.cornell.edu" target="_blank" rel="noopener noreferrer">Cornell Class Roster</a>. <a href="https://github.com/johnchun10" target="_blank" rel="noopener noreferrer">John Chun</a>.</p>
+      <p>Data from <a href="https://classes.cornell.edu" target="_blank" rel="noopener noreferrer">Cornell Class Roster</a></p>
     </footer>
   </div>
 
