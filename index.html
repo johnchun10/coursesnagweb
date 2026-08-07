@@ -5,18 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CourseSnag | Cornell Course Tracker</title>
   <meta name="description" content="Track Cornell class offerings and get instant alerts when seats open.">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-cornell-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-cornell-16.png">
-  <link rel="apple-touch-icon" href="favicon-cornell.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-cornell-32.png?v=3">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-cornell-16.png?v=3">
+  <link rel="apple-touch-icon" href="favicon-cornell.png?v=3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="bg-mesh" aria-hidden="true"></div>
-  <div class="noise-layer" aria-hidden="true"></div>
-
   <div class="container">
     <header class="header">
       <div class="header-meta">
@@ -24,12 +21,10 @@
           <span class="meta-label">Roster</span>
           <span id="roster-label">Loading roster...</span>
         </div>
-        <span id="last-updated" class="timestamp"></span>
       </div>
 
       <div class="logo-section">
         <h1 class="logo">CourseSnag</h1>
-        <p class="logo-subtitle">Faster than CourseGrab!</p>
       </div>
 
       <div class="header-actions">
@@ -77,69 +72,192 @@
 
       <section class="panel tracked-panel">
         <div class="tracked-header">
-          <h2>Your watchlist</h2>
+          <div class="tracked-heading-row">
+            <h2>Your watchlist</h2>
+            <span id="last-updated" class="timestamp"></span>
+          </div>
           <div id="tracked-status" class="status-indicator"></div>
         </div>
 
         <div id="tab-open-notice" class="tab-open-notice hidden" role="status" aria-live="polite">
           <span class="tab-open-indicator" aria-hidden="true"></span>
-          <span id="tab-open-notice-text">Keep this tab open to get alerted.</span>
+          <span id="tab-open-notice-text">Local alerts require this tab.</span>
         </div>
 
         <div id="tracked-list" class="tracked-list">
           <p class="empty-state">No sections tracked yet</p>
         </div>
 
-        <div class="tracked-footer">
-          <div class="settings-section">
-            <h3>Alert settings</h3>
+      </section>
+    </main>
 
-            <div class="settings-group">
-              <label class="settings-label">Refresh interval</label>
+    <footer class="footer">
+      <p>Data from <a href="https://classes.cornell.edu" target="_blank" rel="noopener noreferrer">Cornell Class Roster</a></p>
+      <button id="settings-btn" class="footer-settings-btn" type="button">Settings</button>
+    </footer>
+  </div>
+
+  <div id="alert-banner" class="alert-banner hidden">
+    <span id="alert-message">Section is now OPEN!</span>
+    <div class="alert-actions">
+      <button id="dismiss-5min-btn" class="btn btn-small">Snooze 5m</button>
+      <button id="untrack-alert-btn" class="btn btn-small">Untrack</button>
+    </div>
+  </div>
+
+  <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+    <div class="settings-sheet">
+      <header class="settings-sheet-header">
+        <div>
+          <span id="settings-eyebrow" class="settings-eyebrow">Preferences</span>
+          <h2 id="settings-title">Settings</h2>
+        </div>
+        <button id="settings-close-btn" class="settings-close-btn" type="button" aria-label="Close settings">&times;</button>
+      </header>
+
+      <div class="settings-sheet-body">
+        <section id="mode-choice-view" class="settings-view mode-choice-view" aria-labelledby="settings-title">
+          <div class="mode-choice-grid" role="group" aria-label="Alert mode">
+            <button id="choose-local-mode" class="mode-choice-card" type="button" data-choice="local">
+              <span class="mode-choice-topline">
+                <span class="mode-choice-number">01 / LOCAL</span>
+                <span class="mode-choice-availability available">
+                  <span aria-hidden="true"></span>
+                  Available
+                </span>
+              </span>
+              <strong>Local</strong>
+              <span class="mode-choice-description">Tab needs to stay open and computer needs to stay on to receive alerts.</span>
+              <span class="mode-choice-bottomline">
+                <span class="mode-current-label" data-current-mode="local" hidden>Current mode</span>
+                <span class="mode-choice-action">Select</span>
+              </span>
+            </button>
+
+            <button id="choose-cloud-mode" class="mode-choice-card" type="button" data-choice="cloud" disabled>
+              <span class="mode-choice-topline">
+                <span class="mode-choice-number">02 / CLOUD</span>
+                <span id="cloud-option-status" class="mode-choice-availability checking">
+                  <span aria-hidden="true"></span>
+                  <span id="cloud-option-status-text">Checking</span>
+                </span>
+              </span>
+              <strong>Cloud</strong>
+              <span class="mode-choice-description">Cloud server monitors watchlist; computer can be off and you will be alerted through Discord.</span>
+              <span class="mode-requirement">Requires Discord</span>
+              <span class="mode-choice-bottomline">
+                <span class="mode-current-label" data-current-mode="cloud" hidden>Current mode</span>
+                <span id="cloud-option-action" class="mode-choice-action">Checking availability</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section id="local-settings-view" class="settings-view mode-detail-view" aria-labelledby="local-alerts-title" hidden>
+          <div class="mode-detail-heading">
+            <span>Local</span>
+            <h3 id="local-alerts-title">Local setup</h3>
+            <p>Alerts require this tab to remain open and your computer to remain on.</p>
+          </div>
+
+          <div class="mode-detail-content">
+            <div class="preference-row">
+              <div class="preference-name">
+                <strong>Sound</strong>
+              </div>
+              <div class="preference-controls">
+                <label class="switch-control">
+                  <input type="checkbox" id="sound-toggle">
+                  <span aria-hidden="true"></span>
+                  <span class="sr-only">Enable sound alerts</span>
+                </label>
+                <button id="test-sound-btn" class="btn btn-small btn-secondary" type="button">Test</button>
+              </div>
+            </div>
+
+            <div class="preference-row">
+              <div class="preference-name">
+                <strong>Browser notifications</strong>
+                <span id="notify-status" class="notify-status"></span>
+              </div>
+              <div class="preference-controls">
+                <label class="switch-control">
+                  <input type="checkbox" id="notify-toggle">
+                  <span aria-hidden="true"></span>
+                  <span class="sr-only">Enable browser notifications</span>
+                </label>
+                <button id="test-notify-btn" class="btn btn-small btn-secondary" type="button">Test</button>
+              </div>
+            </div>
+
+            <div class="preference-block">
+              <span class="settings-label">Refresh interval</span>
               <div class="segmented" id="polling-segmented" role="radiogroup" aria-label="Refresh interval">
-                <div class="segment-indicator" id="polling-indicator" aria-hidden="true"></div>
+                <div class="segment-indicator" aria-hidden="true"></div>
                 <button class="segment-btn" type="button" data-interval="10" aria-pressed="false">10s</button>
                 <button class="segment-btn" type="button" data-interval="30" aria-pressed="false">30s</button>
                 <button class="segment-btn" type="button" data-interval="60" aria-pressed="false">60s</button>
                 <button class="segment-btn" type="button" data-interval="300" aria-pressed="false">5m</button>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div class="settings-group">
-              <div class="settings-row">
-                <label class="toggle-label">
-                  <input type="checkbox" id="sound-toggle">
-                  <span>Sound alert</span>
-                </label>
-                <button id="test-sound-btn" class="btn btn-small btn-secondary">Test</button>
-              </div>
-              <div class="settings-row">
-                <label class="toggle-label">
-                  <input type="checkbox" id="notify-toggle" checked>
-                  <span>Browser notifications</span>
-                  <span id="notify-status" class="notify-status"></span>
-                </label>
-                <button id="test-notify-btn" class="btn btn-small btn-secondary">Test</button>
-              </div>
-            </div>
+        <section id="cloud-settings-view" class="settings-view mode-detail-view" aria-labelledby="cloud-settings-title" hidden>
+          <div class="mode-detail-heading">
+            <span>Cloud</span>
+            <h3 id="cloud-settings-title">Cloud setup</h3>
+            <p class="cloud-requirement-warning"><strong>Requires Discord.</strong> Connect Discord before relying on cloud alerts.</p>
           </div>
 
-          <div id="alert-banner" class="alert-banner hidden">
-            <span id="alert-message">Section is now OPEN!</span>
-            <div class="alert-actions">
-              <button id="dismiss-5min-btn" class="btn btn-small">Snooze 5m</button>
-              <button id="untrack-alert-btn" class="btn btn-small">Untrack</button>
+          <div class="mode-detail-content">
+            <div class="cloud-mode-block">
+              <span id="cloud-mode-badge" class="cloud-mode-badge" data-mode="checking" aria-hidden="true"></span>
+              <div class="cloud-mode-copy">
+                <strong id="cloud-mode-title">Checking status</strong>
+                <span id="cloud-mode-description">Checking AWS</span>
+              </div>
             </div>
+
+            <div class="cloud-account-panel">
+              <span class="settings-label">Google account</span>
+
+              <div id="cloud-signin-wrap" class="cloud-signin-wrap">
+                <div id="google-signin-button" aria-label="Sign in with Google"></div>
+              </div>
+
+              <div id="cloud-profile" class="cloud-profile" hidden>
+                <img id="cloud-avatar" class="cloud-avatar" alt="">
+                <span class="cloud-profile-copy">
+                  <strong id="cloud-profile-name"></strong>
+                  <span id="cloud-profile-email"></span>
+                </span>
+                <button id="cloud-signout-btn" class="cloud-signout-btn" type="button">Sign out</button>
+              </div>
+
+              <button id="cloud-sync-btn" class="btn btn-small btn-secondary cloud-sync-btn" type="button" hidden>
+                Sync now
+              </button>
+            </div>
+
+            <p id="cloud-sync-status" class="cloud-sync-status" role="status" aria-live="polite"></p>
           </div>
+        </section>
+      </div>
+
+      <footer class="settings-sheet-footer">
+        <span id="settings-footer-note">Select a mode to continue</span>
+        <div class="settings-footer-actions">
+          <button id="settings-switch-mode-btn" class="btn btn-secondary" type="button" hidden>Switch mode</button>
+          <button id="settings-done-btn" class="btn btn-primary" type="button" disabled>Continue</button>
         </div>
-      </section>
-    </main>
+      </footer>
+    </div>
+  </dialog>
 
-    <footer class="footer">
-      <p>Data from <a href="https://classes.cornell.edu" target="_blank" rel="noopener noreferrer">Cornell Class Roster</a></p>
-    </footer>
-  </div>
-
+  <script src="config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
