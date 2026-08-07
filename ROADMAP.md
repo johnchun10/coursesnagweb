@@ -43,7 +43,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Bot token and client secret stored as SSM `SecureString` values.
 - [x] Discord User Install enabled with `applications.commands`.
 - [x] Discord-only backend deployed to AWS.
-- [ ] Publish the matching Discord-only frontend through Cloudflare Pages.
+- [x] Publish the matching Discord-only frontend through Cloudflare Pages and verify the production UI.
 - [ ] Complete one real Discord sign-in and verify the same account returns after refresh.
 - [ ] Add a test course and verify cloud persistence.
 - [ ] Receive “tracking added” and first availability-status DMs on tester account `jochu`.
