@@ -124,7 +124,7 @@ Post-deployment checks:
 - [x] Implement Discord OAuth connect, callback, status, and disconnect code locally.
 - [x] Protect callbacks with ten-minute, single-use OAuth state records.
 - [x] Limit Discord authorization to `identify` and avoid retaining user access tokens.
-- [ ] Deploy Discord OAuth routes to AWS.
+- [x] Deploy Discord OAuth routes to AWS.
 - [ ] Add the deployed callback URL in the Discord Developer Portal.
 - [ ] Store the bot token and OAuth client secret with `./scripts/set-discord-secrets.sh`.
 - [ ] Persist the authorized Discord user ID on the matching Google profile.
