@@ -1297,7 +1297,10 @@
     els.refreshBtn.textContent = 'Refreshing...';
 
     try {
-      const refreshes = [refreshTrackedSections()];
+      const refreshes = [
+        refreshTrackedSections(),
+        window.CourseSnagCloud?.syncNow?.()
+      ].filter(Boolean);
 
       // Also refresh search results if there's an active search
       if (state.cachedSubject) {

@@ -1,6 +1,6 @@
 # CourseSnag cloud roadmap
 
-Last updated: 2026-08-06
+Last updated: 2026-08-07
 
 This file is the durable project checkpoint. Read it together with `docs/CLOUD_ARCHITECTURE.md` and `docs/OWNER_GUIDE.md` when resuming work in a new session.
 
@@ -112,8 +112,11 @@ Post-deployment checks:
 - [x] Request browser notification permission only after the user enables it.
 - [x] Verify local search, add, persistence, removal, desktop layout, and mobile layout.
 - [x] Verify cloud-to-local merging with an isolated mocked Google session and API.
-- [ ] Publish the frontend changes to Cloudflare Pages.
-- [ ] Complete one real Google sign-in and AWS account/watchlist round trip at `coursesnag.pages.dev`.
+- [x] Publish the frontend changes to Cloudflare Pages.
+- [x] Complete one real Google sign-in and AWS account/watchlist round trip at `coursesnag.pages.dev`.
+- [x] Sync account watchlists automatically on page load, refresh, add, and removal.
+- [x] Present Google and Discord as parallel account connections in Cloud settings.
+- [ ] Authorize an HTTP localhost origin in Google and AWS CORS for local Cloud-mode UI testing; direct `file://` access remains Local-only.
 - [ ] Add export/import backup for local watchlists.
 
 ## Discord phase

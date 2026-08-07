@@ -51,9 +51,20 @@ After publishing the frontend:
 4. Sign in with Google.
 5. Track one closed section and confirm the sync status updates in Settings.
 6. Reload the page and confirm the tracker remains.
-7. Remove it, sync again, and run `./scripts/season.sh stop` after testing.
+7. Remove it and confirm the removal syncs automatically. Run `./scripts/season.sh stop` when Cloud Active is no longer needed.
+
+There is no separate manual sync control. CourseSnag synchronizes on page load, **Refresh now**, tracker additions, and tracker removals.
 
 The Cloud option is intentionally disabled whenever AWS is not in Cloud Active mode.
+
+## Local Cloud-mode development
+
+Direct `file://` pages have an opaque origin and intentionally remain Local-only. To test Cloud-mode UI locally, serve the site over HTTP, such as `http://localhost:4173`, and add that exact origin to both:
+
+- the Google OAuth client's authorized JavaScript origins; and
+- the AWS API CORS allowed origins in the infrastructure configuration.
+
+Keep the production origin authorized as well. Localhost support should be treated as a development setting rather than allowing arbitrary origins.
 
 ## Before testing Discord
 

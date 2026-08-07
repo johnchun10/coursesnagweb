@@ -93,16 +93,16 @@
 
     if (mode === 'cloud') {
       state.els.modeTitle.textContent = 'Cloud Active';
-      state.els.modeDescription.textContent = 'AWS monitoring enabled';
+      state.els.modeDescription.textContent = 'Monitoring enabled';
     } else if (mode === 'unavailable') {
       state.els.modeTitle.textContent = 'Unavailable';
-      state.els.modeDescription.textContent = 'AWS status unavailable';
+      state.els.modeDescription.textContent = 'Monitoring status unavailable';
     } else if (mode === 'checking') {
       state.els.modeTitle.textContent = 'Checking status';
-      state.els.modeDescription.textContent = 'Checking AWS';
+      state.els.modeDescription.textContent = 'Checking monitoring';
     } else {
       state.els.modeTitle.textContent = 'Local Standby';
-      state.els.modeDescription.textContent = 'AWS monitoring paused';
+      state.els.modeDescription.textContent = 'Monitoring paused';
     }
     announceState();
   }
@@ -111,7 +111,7 @@
     const signedIn = Boolean(state.credential && state.user);
     state.els.signInWrap.hidden = signedIn;
     state.els.profile.hidden = !signedIn;
-    state.els.syncButton.hidden = !signedIn;
+    state.els.signOutButton.hidden = !signedIn;
 
     if (!signedIn) {
       state.els.profileName.textContent = '';
@@ -208,7 +208,6 @@
     if (!state.credential || !state.adapter || state.syncing) return;
     state.syncing = true;
     announceState();
-    state.els.syncButton.disabled = true;
     setSyncStatus('Synchronizing local and cloud watchlists…', 'working');
 
     try {
@@ -234,20 +233,12 @@
         await uploadTracker(tracker);
       }
 
-      const time = new Intl.DateTimeFormat([], {
-        hour: 'numeric',
-        minute: '2-digit'
-      }).format(new Date());
-      const modeNote = state.mode === 'cloud'
-        ? 'Cloud monitoring is active.'
-        : 'Cloud monitoring remains paused.';
-      setSyncStatus(`Synced ${localTrackers.length} tracker${localTrackers.length === 1 ? '' : 's'} at ${time}. ${modeNote}`, 'success');
+      setSyncStatus('Watchlist up to date.', 'success');
     } catch (error) {
       console.error('Cloud synchronization failed:', error);
       setSyncStatus(error.message, 'error');
     } finally {
       state.syncing = false;
-      state.els.syncButton.disabled = false;
       announceState();
     }
   }
@@ -357,11 +348,9 @@
       profileName: document.getElementById('cloud-profile-name'),
       profileEmail: document.getElementById('cloud-profile-email'),
       avatar: document.getElementById('cloud-avatar'),
-      syncButton: document.getElementById('cloud-sync-btn'),
       signOutButton: document.getElementById('cloud-signout-btn')
     };
 
-    state.els.syncButton.addEventListener('click', syncNow);
     state.els.signOutButton.addEventListener('click', () => signOut());
     restoreCredential();
     renderMode();
