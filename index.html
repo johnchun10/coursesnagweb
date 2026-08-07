@@ -207,7 +207,7 @@
           <div class="mode-detail-heading">
             <span>Cloud</span>
             <h3 id="cloud-settings-title">Cloud setup</h3>
-            <p class="cloud-requirement-warning"><strong>Requires Discord.</strong> Connect Discord before relying on cloud alerts.</p>
+            <p class="cloud-requirement-warning"><strong>Discord account required.</strong> One login saves your watchlist and receives alerts.</p>
           </div>
 
           <div class="mode-detail-content">
@@ -219,47 +219,26 @@
               </div>
             </div>
 
-            <div class="cloud-accounts-grid">
-              <section class="cloud-account-panel" aria-labelledby="google-account-label">
-                <span id="google-account-label" class="settings-label">Google account</span>
+            <section class="discord-cloud-account" aria-labelledby="discord-account-label">
+              <span id="discord-account-label" class="settings-label">CourseSnag account</span>
 
-                <div class="cloud-account-body">
-                  <div id="cloud-signin-wrap" class="cloud-signin-wrap">
-                    <div id="google-signin-button" aria-label="Sign in with Google"></div>
-                  </div>
+              <div id="discord-profile" class="cloud-profile discord-profile">
+                <span class="discord-account-mark" aria-hidden="true">D</span>
+                <span class="cloud-profile-copy">
+                  <strong id="discord-profile-name">Not connected</strong>
+                  <span id="discord-profile-detail">Discord saves your watchlist and receives alerts</span>
+                </span>
+              </div>
 
-                  <div id="cloud-profile" class="cloud-profile" hidden>
-                    <img id="cloud-avatar" class="cloud-avatar" alt="">
-                    <span class="cloud-profile-copy">
-                      <strong id="cloud-profile-name"></strong>
-                      <span id="cloud-profile-email"></span>
-                    </span>
-                  </div>
-                </div>
-
+              <div class="discord-account-actions">
+                <button id="discord-connect-btn" class="btn btn-small btn-secondary cloud-account-action" type="button">
+                  Continue with Discord
+                </button>
                 <button id="cloud-signout-btn" class="btn btn-small btn-secondary cloud-account-action" type="button" hidden>
                   Sign out
                 </button>
-              </section>
-
-              <section class="cloud-account-panel discord-account-panel" aria-labelledby="discord-account-label">
-                <span id="discord-account-label" class="settings-label">Discord account</span>
-
-                <div class="cloud-account-body">
-                  <div id="discord-profile" class="cloud-profile discord-profile">
-                    <span class="discord-account-mark" aria-hidden="true">D</span>
-                    <span class="cloud-profile-copy">
-                      <strong id="discord-profile-name">Not connected</strong>
-                      <span id="discord-profile-detail">Required for direct-message alerts</span>
-                    </span>
-                  </div>
-                </div>
-
-                <button id="discord-connect-btn" class="btn btn-small btn-secondary cloud-account-action" type="button">
-                  Connect Discord
-                </button>
-              </section>
-            </div>
+              </div>
+            </section>
 
             <p id="cloud-sync-status" class="cloud-sync-status" role="status" aria-live="polite"></p>
           </div>
@@ -277,7 +256,6 @@
   </dialog>
 
   <script src="config.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="cloud.js"></script>
   <script src="app.js"></script>
 </body>

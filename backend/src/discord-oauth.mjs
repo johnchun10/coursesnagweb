@@ -81,7 +81,8 @@ export function buildDiscordAuthorizationUrl(state, redirectUri) {
     client_id: config.discordApplicationId,
     response_type: 'code',
     redirect_uri: redirectUri,
-    scope: 'identify',
+    scope: 'identify applications.commands',
+    integration_type: '1',
     state,
     prompt: 'consent'
   });
@@ -98,11 +99,11 @@ export function publicDiscordIdentity(user) {
   };
 }
 
-export async function createDiscordAuthorization(userId, redirectUri) {
+export async function createDiscordAuthorization(redirectUri) {
   requireConfig('discordApplicationId', 'discordClientSecretParameter');
   await clientSecret();
   const state = randomBytes(32).toString('base64url');
-  await putDiscordOAuthState(userId, state, STATE_LIFETIME_SECONDS);
+  await putDiscordOAuthState(state, STATE_LIFETIME_SECONDS);
   return {
     authorizationUrl: buildDiscordAuthorizationUrl(state, redirectUri),
     expiresIn: STATE_LIFETIME_SECONDS
@@ -126,7 +127,6 @@ export async function completeDiscordAuthorization(code, state, redirectUri) {
 
   try {
     return {
-      googleUserId: pending.userId,
       discord: publicDiscordIdentity(await discordUser(token.access_token))
     };
   } finally {

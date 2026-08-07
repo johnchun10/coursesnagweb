@@ -13,9 +13,8 @@ export async function sendAlertMessages(messages) {
       QueueUrl: config.alertQueueUrl,
       Entries: batch.map((message, batchIndex) => {
         const body = JSON.stringify(message);
-        const stableAlertIdentity = message.type === 'course-opened'
-          ? `${message.type}:${message.discordUserId}:${message.tracker?.roster}:${message.tracker?.classNbr}`
-          : `${message.type}:${message.discordUserId}`;
+        const stableAlertIdentity = message.eventId
+          || `${message.type}:${message.discordUserId}:${message.tracker?.roster || ''}:${message.tracker?.classNbr || ''}:${message.detectedAt || ''}`;
         return {
           Id: String(batchIndex),
           MessageBody: body,

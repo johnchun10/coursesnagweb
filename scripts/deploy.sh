@@ -18,7 +18,6 @@ set +a
 : "${STACK_NAME:=coursesnag-dev}"
 : "${STAGE_NAME:=dev}"
 : "${ALLOWED_ORIGIN:=https://coursesnag.pages.dev}"
-: "${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}"
 : "${DISCORD_APPLICATION_ID:?DISCORD_APPLICATION_ID is required}"
 : "${BUDGET_ALERT_EMAIL:?Add BUDGET_ALERT_EMAIL to infra/parameters.local.env before deployment}"
 
@@ -81,7 +80,6 @@ aws cloudformation deploy \
   --parameter-overrides \
     StageName="$STAGE_NAME" \
     AllowedOrigin="$ALLOWED_ORIGIN" \
-    GoogleClientId="$GOOGLE_CLIENT_ID" \
     DiscordApplicationId="$DISCORD_APPLICATION_ID" \
     BudgetAlertEmail="$BUDGET_ALERT_EMAIL" \
     AnnualBudgetAmount=50 \

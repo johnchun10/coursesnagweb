@@ -16,7 +16,8 @@ test('builds a scoped Discord authorization URL', () => {
   assert.equal(result.searchParams.get('client_id'), '1534241192819163296');
   assert.equal(result.searchParams.get('response_type'), 'code');
   assert.equal(result.searchParams.get('redirect_uri'), redirectUri);
-  assert.equal(result.searchParams.get('scope'), 'identify');
+  assert.equal(result.searchParams.get('scope'), 'identify applications.commands');
+  assert.equal(result.searchParams.get('integration_type'), '1');
   assert.equal(result.searchParams.get('state'), 'state-token');
 });
 

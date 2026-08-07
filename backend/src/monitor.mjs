@@ -1,5 +1,6 @@
 import { buildStatusIndex, fetchSubjectClasses, wait } from './cornell.mjs';
-import { groupTrackersByRosterSubject, shouldAlertForTransition } from './domain.mjs';
+import { randomUUID } from 'node:crypto';
+import { availabilityEventForTransition, groupTrackersByRosterSubject } from './domain.mjs';
 import { sendAlertMessages } from './queue.mjs';
 import {
   getProfiles,
@@ -14,7 +15,7 @@ export async function handler() {
   }
 
   const groups = groupTrackersByRosterSubject(trackers);
-  const opened = [];
+  const changed = [];
   const observations = [];
   let checked = 0;
   let groupIndex = 0;
@@ -32,8 +33,9 @@ export async function handler() {
         const newStatus = statuses.get(String(tracker.classNbr));
         if (newStatus === undefined) continue;
 
-        if (shouldAlertForTransition(tracker.lastStatus, newStatus)) {
-          opened.push({ ...tracker, newStatus, checkedAt });
+        const notificationType = availabilityEventForTransition(tracker.lastStatus, newStatus);
+        if (notificationType) {
+          changed.push({ ...tracker, notificationType, newStatus, checkedAt });
         }
         observations.push({ tracker, newStatus, checkedAt });
         checked += 1;
@@ -47,12 +49,13 @@ export async function handler() {
     }
   }
 
-  const profiles = await getProfiles(opened.map(item => item.userId));
-  const messages = opened.flatMap(tracker => {
-    const discordUserId = profiles.get(tracker.userId)?.discordUserId;
+  const profiles = await getProfiles(changed.map(item => item.userId));
+  const messages = changed.flatMap(tracker => {
+    const discordUserId = profiles.get(tracker.userId)?.discordUserId || tracker.userId;
     if (!discordUserId) return [];
     return [{
-      type: 'course-opened',
+      eventId: randomUUID(),
+      type: tracker.notificationType,
       discordUserId,
       tracker: {
         roster: tracker.roster,
@@ -63,11 +66,12 @@ export async function handler() {
         section: tracker.section || '',
         classTime: tracker.classTime || ''
       },
+      status: tracker.newStatus,
       detectedAt: tracker.checkedAt
     }];
   });
 
-  // Queue notifications before committing the OPEN status. If queueing fails,
+  // Queue notifications before committing the changed status. If queueing fails,
   // the next monitor run can retry rather than silently losing the alert.
   const alertsQueued = messages.length ? await sendAlertMessages(messages) : 0;
   for (const observation of observations) {

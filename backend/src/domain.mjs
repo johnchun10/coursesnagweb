@@ -64,8 +64,9 @@ export function groupTrackersByRosterSubject(trackers) {
   return groups;
 }
 
-export function shouldAlertForTransition(oldStatus, newStatus) {
-  return oldStatus !== 'O' && newStatus === 'O';
+export function availabilityEventForTransition(oldStatus, newStatus) {
+  if (!newStatus || oldStatus === newStatus) return null;
+  return newStatus === 'O' ? 'course-opened' : 'course-not-open';
 }
 
 export function publicTracker(item) {

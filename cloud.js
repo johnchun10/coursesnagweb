@@ -1,21 +1,20 @@
-// CourseSnag account and cloud-watchlist client
+// CourseSnag Discord account and cloud-watchlist client
 (function() {
   'use strict';
 
   const config = window.COURSESNAG_CONFIG || {};
-  const CREDENTIAL_KEY = 'csw.googleCredential';
+  const SESSION_KEY = 'csw.discordSession';
+  const LEGACY_GOOGLE_KEY = 'csw.googleCredential';
   const TOMBSTONE_KEY = 'csw.cloudTombstones';
   const TOMBSTONE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
   const state = {
     mode: 'checking',
-    credential: null,
-    user: null,
+    sessionToken: null,
     profile: null,
     syncing: false,
     discordBusy: false,
     initialized: false,
-    googleReady: false,
     adapter: null,
     els: {}
   };
@@ -40,24 +39,16 @@
     localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(tombstones));
   }
 
-  function decodeCredential(credential) {
-    try {
-      const payload = credential.split('.')[1];
-      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-      const bytes = Uint8Array.from(atob(padded), character => character.charCodeAt(0));
-      return JSON.parse(new TextDecoder().decode(bytes));
-    } catch {
-      return null;
-    }
+  function isSignedIn() {
+    return Boolean(state.sessionToken && state.profile?.discordConnected);
   }
 
   function publicState() {
     return {
       mode: state.mode,
-      signedIn: Boolean(state.credential),
+      signedIn: isSignedIn(),
       syncing: state.syncing,
-      discordConnected: Boolean(state.profile?.discordConnected)
+      discordConnected: isSignedIn()
     };
   }
 
@@ -65,23 +56,6 @@
     window.dispatchEvent(new CustomEvent('coursesnag:cloud-state', {
       detail: publicState()
     }));
-  }
-
-  function credentialIsUsable(credential) {
-    const claims = decodeCredential(credential);
-    if (!claims) return false;
-    if (claims.aud !== config.googleClientId) return false;
-    return Number(claims.exp || 0) * 1000 > Date.now() + 60_000;
-  }
-
-  function restoreCredential() {
-    const stored = sessionStorage.getItem(CREDENTIAL_KEY);
-    if (!stored || !credentialIsUsable(stored)) {
-      sessionStorage.removeItem(CREDENTIAL_KEY);
-      return;
-    }
-    state.credential = stored;
-    state.user = decodeCredential(stored);
   }
 
   function setSyncStatus(message, type = '') {
@@ -111,84 +85,60 @@
   }
 
   function renderAccount() {
-    const signedIn = Boolean(state.credential && state.user);
-    state.els.signInWrap.hidden = signedIn;
-    state.els.profile.hidden = !signedIn;
-    state.els.signOutButton.hidden = !signedIn;
+    const hasSession = Boolean(state.sessionToken);
+    const connected = isSignedIn();
+    const discord = state.profile?.discord;
 
-    if (!signedIn) {
-      state.profile = null;
-      state.els.profileName.textContent = '';
-      state.els.profileEmail.textContent = '';
-      state.els.avatar.removeAttribute('src');
-      if (!state.syncing) setSyncStatus('');
-      renderDiscordAccount();
-      announceState();
-      return;
-    }
-
-    state.els.profileName.textContent = state.user.name || 'Google account';
-    state.els.profileEmail.textContent = state.user.email || '';
-    if (state.user.picture) {
-      state.els.avatar.src = state.user.picture;
-      state.els.avatar.alt = '';
+    if (connected) {
+      state.els.discordProfileName.textContent = discord?.displayName || 'Discord connected';
+      state.els.discordProfileDetail.textContent = discord?.username
+        ? `@${discord.username} · Watchlist sync and direct messages enabled`
+        : 'Watchlist sync and direct messages enabled';
+    } else if (hasSession) {
+      state.els.discordProfileName.textContent = 'Checking account';
+      state.els.discordProfileDetail.textContent = 'Restoring your Discord session';
     } else {
-      state.els.avatar.removeAttribute('src');
+      state.els.discordProfileName.textContent = 'Not connected';
+      state.els.discordProfileDetail.textContent = 'Discord saves your watchlist and receives alerts';
     }
-    renderDiscordAccount();
+
+    state.els.discordButton.hidden = hasSession;
+    state.els.discordButton.textContent = state.discordBusy
+      ? 'Opening Discord…'
+      : 'Continue with Discord';
+    state.els.discordButton.disabled = state.discordBusy;
+    state.els.signOutButton.hidden = !hasSession;
+    state.els.signOutButton.disabled = state.discordBusy;
     announceState();
   }
 
-  function renderDiscordAccount() {
-    if (!state.els.discordProfileName) return;
-    const signedIn = Boolean(state.credential && state.user);
-    const connected = Boolean(state.profile?.discordConnected);
-
-    if (!signedIn) {
-      state.els.discordProfileName.textContent = 'Sign in with Google first';
-      state.els.discordProfileDetail.textContent = 'Google links Discord to your CourseSnag account';
-      state.els.discordButton.textContent = 'Connect Discord';
-      state.els.discordButton.disabled = true;
-      return;
-    }
-
-    if (!state.profile) {
-      state.els.discordProfileName.textContent = 'Checking connection';
-      state.els.discordProfileDetail.textContent = 'Loading Discord account status';
-      state.els.discordButton.textContent = 'Connect Discord';
-      state.els.discordButton.disabled = true;
-      return;
-    }
-
-    if (connected) {
-      state.els.discordProfileName.textContent = state.profile.discord?.displayName || 'Discord connected';
-      state.els.discordProfileDetail.textContent = state.profile.discord?.username
-        ? `@${state.profile.discord.username}`
-        : 'Ready for direct-message alerts';
-      state.els.discordButton.textContent = state.discordBusy ? 'Disconnecting…' : 'Disconnect';
+  function restoreSession() {
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (stored && /^[A-Za-z0-9_-]{32,}$/.test(stored)) {
+      state.sessionToken = stored;
     } else {
-      state.els.discordProfileName.textContent = 'Not connected';
-      state.els.discordProfileDetail.textContent = 'Required for direct-message alerts';
-      state.els.discordButton.textContent = state.discordBusy ? 'Opening Discord…' : 'Connect Discord';
+      localStorage.removeItem(SESSION_KEY);
     }
-    state.els.discordButton.disabled = state.discordBusy;
+    sessionStorage.removeItem(LEGACY_GOOGLE_KEY);
   }
 
-  async function publicFetch(path) {
-    const response = await fetch(`${config.apiBaseUrl}${path}`, {
-      headers: { accept: 'application/json' }
-    });
-    if (!response.ok) throw new Error(`Cloud service returned HTTP ${response.status}`);
-    return response.json();
+  function clearSession(message = '') {
+    state.sessionToken = null;
+    state.profile = null;
+    localStorage.removeItem(SESSION_KEY);
+    renderAccount();
+    if (message) setSyncStatus(message);
   }
 
-  async function cloudFetch(path, options = {}) {
-    if (!state.credential) throw new Error('Sign in is required.');
+  async function request(path, options = {}, authenticated = false) {
     const headers = {
       accept: 'application/json',
-      authorization: `Bearer ${state.credential}`,
       ...(options.headers || {})
     };
+    if (authenticated) {
+      if (!state.sessionToken) throw new Error('Connect Discord to use cloud tracking.');
+      headers.authorization = `Bearer ${state.sessionToken}`;
+    }
     if (options.body) headers['content-type'] = 'application/json';
 
     const response = await fetch(`${config.apiBaseUrl}${path}`, {
@@ -196,9 +146,9 @@
       headers
     });
 
-    if (response.status === 401) {
-      signOut('Your Google session expired. Sign in again to sync.');
-      throw new Error('Google session expired.');
+    if (authenticated && response.status === 401) {
+      clearSession('Discord session expired. Connect again.');
+      throw new Error('Discord session expired.');
     }
     if (!response.ok) {
       let message = `Cloud service returned HTTP ${response.status}`;
@@ -212,6 +162,14 @@
     }
     if (response.status === 204) return null;
     return response.json();
+  }
+
+  function publicFetch(path, options = {}) {
+    return request(path, options, false);
+  }
+
+  function cloudFetch(path, options = {}) {
+    return request(path, options, true);
   }
 
   async function fetchMode() {
@@ -246,15 +204,16 @@
   }
 
   async function syncNow() {
-    if (!state.credential || !state.adapter || state.syncing) return;
+    if (state.mode !== 'cloud' || !state.sessionToken || !state.adapter || state.syncing) return;
     state.syncing = true;
     announceState();
     setSyncStatus('Synchronizing local and cloud watchlists…', 'working');
 
     try {
-      const profilePayload = await cloudFetch('/me', { method: 'PUT' });
+      const profilePayload = await cloudFetch('/me');
       state.profile = profilePayload.profile;
-      renderDiscordAccount();
+      renderAccount();
+
       const cloudPayload = await cloudFetch('/trackers');
       const tombstones = loadTombstones();
       const retainedCloud = [];
@@ -271,8 +230,7 @@
       saveTombstones(tombstones);
 
       state.adapter.mergeCloudTrackers(retainedCloud);
-      const localTrackers = state.adapter.getLocalTrackers();
-      for (const tracker of localTrackers) {
+      for (const tracker of state.adapter.getLocalTrackers()) {
         await uploadTracker(tracker);
       }
 
@@ -286,106 +244,93 @@
     }
   }
 
-  async function acceptGoogleCredential(response) {
-    if (!credentialIsUsable(response.credential)) {
-      setSyncStatus('Google returned an unusable sign-in response.', 'error');
-      return;
+  async function restoreProfile() {
+    if (!state.sessionToken) return;
+    try {
+      const payload = await cloudFetch('/me');
+      state.profile = payload.profile;
+      renderAccount();
+    } catch (error) {
+      console.warn('Discord profile restoration failed:', error);
+      setSyncStatus(error.message, 'error');
     }
-    state.credential = response.credential;
-    state.user = decodeCredential(response.credential);
-    sessionStorage.setItem(CREDENTIAL_KEY, response.credential);
-    renderAccount();
-    await syncNow();
   }
 
-  function signOut(message = 'Signed out.') {
-    state.credential = null;
-    state.user = null;
-    state.profile = null;
-    sessionStorage.removeItem(CREDENTIAL_KEY);
-    if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect();
-    renderAccount();
-    setSyncStatus(message);
-    renderGoogleButton();
-  }
-
-  async function toggleDiscordConnection() {
-    if (!state.credential || !state.profile || state.discordBusy) return;
+  async function startDiscordSignIn() {
+    if (state.discordBusy || state.sessionToken) return;
     state.discordBusy = true;
-    renderDiscordAccount();
+    renderAccount();
+    setSyncStatus('Opening Discord authorization…', 'working');
 
     try {
-      if (state.profile.discordConnected) {
-        const payload = await cloudFetch('/discord', { method: 'DELETE' });
-        state.profile = payload.profile;
-        setSyncStatus('Discord disconnected.', 'success');
-      } else {
-        setSyncStatus('Opening Discord authorization…', 'working');
-        const payload = await cloudFetch('/discord/connect', { method: 'POST' });
-        if (!payload?.authorizationUrl) throw new Error('Discord authorization could not be started.');
-        window.location.assign(payload.authorizationUrl);
-      }
+      const payload = await publicFetch('/auth/discord', { method: 'POST' });
+      if (!payload?.authorizationUrl) throw new Error('Discord authorization could not be started.');
+      window.location.assign(payload.authorizationUrl);
     } catch (error) {
-      console.error('Discord connection update failed:', error);
+      console.error('Discord sign-in failed:', error);
       setSyncStatus(error.message, 'error');
+      state.discordBusy = false;
+      renderAccount();
+    }
+  }
+
+  async function signOut() {
+    if (state.discordBusy) return;
+    state.discordBusy = true;
+    renderAccount();
+    try {
+      if (state.sessionToken) await cloudFetch('/session', { method: 'DELETE' });
+    } catch (error) {
+      console.warn('Cloud session revocation failed:', error);
     } finally {
       state.discordBusy = false;
-      renderDiscordAccount();
+      clearSession('Signed out. Your browser watchlist remains on this device.');
     }
   }
 
-  function handleDiscordReturn() {
+  async function handleDiscordReturn() {
     const current = new URL(window.location.href);
     const result = current.searchParams.get('discord');
-    if (!result) return;
+    const code = current.searchParams.get('code');
+    if (!result) return false;
 
     current.searchParams.delete('discord');
+    current.searchParams.delete('code');
     window.history.replaceState({}, '', `${current.pathname}${current.search}${current.hash}`);
 
-    if (result === 'connected') {
-      setSyncStatus('Discord connected.', 'success');
-    } else if (result === 'cancelled') {
-      setSyncStatus('Discord connection cancelled.');
-    } else {
-      setSyncStatus('Discord could not be connected. Try again.', 'error');
+    let finalResult = result;
+    try {
+      if (result === 'connected') {
+        if (!code) throw new Error('Discord login response was incomplete.');
+        setSyncStatus('Finishing Discord sign-in…', 'working');
+        const payload = await publicFetch('/auth/session', {
+          method: 'POST',
+          body: JSON.stringify({ code })
+        });
+        if (!payload?.sessionToken || !payload?.profile) {
+          throw new Error('Discord login response was incomplete.');
+        }
+        state.sessionToken = payload.sessionToken;
+        state.profile = payload.profile;
+        localStorage.setItem(SESSION_KEY, payload.sessionToken);
+        renderAccount();
+        setSyncStatus('Discord connected. Syncing your watchlist…', 'success');
+        await syncNow();
+      } else if (result === 'cancelled') {
+        setSyncStatus('Discord sign-in cancelled.');
+      } else {
+        throw new Error('Discord could not be connected. Try again.');
+      }
+    } catch (error) {
+      finalResult = 'error';
+      clearSession();
+      setSyncStatus(error.message, 'error');
     }
+
     window.dispatchEvent(new CustomEvent('coursesnag:discord-return', {
-      detail: { result }
+      detail: { result: finalResult }
     }));
-  }
-
-  function renderGoogleButton() {
-    if (!state.googleReady || state.credential || !state.els.googleButton) return;
-    state.els.googleButton.replaceChildren();
-    window.google.accounts.id.renderButton(state.els.googleButton, {
-      type: 'standard',
-      theme: 'outline',
-      size: 'medium',
-      shape: 'rectangular',
-      text: 'signin_with',
-      logo_alignment: 'left',
-      width: 210
-    });
-  }
-
-  async function setupGoogleIdentity() {
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      if (window.google?.accounts?.id) break;
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    if (!window.google?.accounts?.id) {
-      setSyncStatus('Google Sign-In unavailable.', 'error');
-      return;
-    }
-
-    window.google.accounts.id.initialize({
-      client_id: config.googleClientId,
-      callback: acceptGoogleCredential,
-      auto_select: false,
-      cancel_on_tap_outside: true
-    });
-    state.googleReady = true;
-    renderGoogleButton();
+    return true;
   }
 
   async function trackerAdded(tracker) {
@@ -394,11 +339,11 @@
     delete tombstones[id];
     saveTombstones(tombstones);
 
-    if (!state.credential) return;
+    if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
-      setSyncStatus('Saving new tracker to your account…', 'working');
+      setSyncStatus('Saving tracker to your Discord account…', 'working');
       await uploadTracker(tracker);
-      setSyncStatus(`Saved ${tracker.subject} ${tracker.catalogNbr || tracker.classNbr} to your account.`, 'success');
+      setSyncStatus(`Tracking ${tracker.subject} ${tracker.catalogNbr || tracker.classNbr} in the cloud.`, 'success');
     } catch (error) {
       setSyncStatus(error.message, 'error');
     }
@@ -410,13 +355,13 @@
     tombstones[id] = Date.now();
     saveTombstones(tombstones);
 
-    if (!state.credential) return;
+    if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
-      setSyncStatus('Removing tracker from your account…', 'working');
+      setSyncStatus('Removing tracker from your Discord account…', 'working');
       await deleteCloudTracker(id);
       delete tombstones[id];
       saveTombstones(tombstones);
-      setSyncStatus('Tracker removed locally and from your account.', 'success');
+      setSyncStatus('Tracker removed from this browser and the cloud.', 'success');
     } catch (error) {
       setSyncStatus(error.message, 'error');
     }
@@ -431,27 +376,24 @@
       modeTitle: document.getElementById('cloud-mode-title'),
       modeDescription: document.getElementById('cloud-mode-description'),
       syncStatus: document.getElementById('cloud-sync-status'),
-      signInWrap: document.getElementById('cloud-signin-wrap'),
-      googleButton: document.getElementById('google-signin-button'),
-      profile: document.getElementById('cloud-profile'),
-      profileName: document.getElementById('cloud-profile-name'),
-      profileEmail: document.getElementById('cloud-profile-email'),
-      avatar: document.getElementById('cloud-avatar'),
       signOutButton: document.getElementById('cloud-signout-btn'),
       discordProfileName: document.getElementById('discord-profile-name'),
       discordProfileDetail: document.getElementById('discord-profile-detail'),
       discordButton: document.getElementById('discord-connect-btn')
     };
 
-    state.els.signOutButton.addEventListener('click', () => signOut());
-    state.els.discordButton.addEventListener('click', toggleDiscordConnection);
-    restoreCredential();
+    state.els.signOutButton.addEventListener('click', signOut);
+    state.els.discordButton.addEventListener('click', startDiscordSignIn);
+    restoreSession();
     renderMode();
     renderAccount();
 
-    await Promise.all([fetchMode(), setupGoogleIdentity()]);
-    if (state.credential) await syncNow();
-    handleDiscordReturn();
+    await fetchMode();
+    const handledReturn = await handleDiscordReturn();
+    if (!handledReturn && state.sessionToken) {
+      if (state.mode === 'cloud') await syncNow();
+      else await restoreProfile();
+    }
   }
 
   window.CourseSnagCloud = {

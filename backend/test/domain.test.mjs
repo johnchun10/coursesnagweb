@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  availabilityEventForTransition,
   groupTrackersByRosterSubject,
-  normalizeTrackerInput,
-  shouldAlertForTransition
+  normalizeTrackerInput
 } from '../src/domain.mjs';
 
 test('normalizes a valid tracker from the browser shape', () => {
@@ -38,9 +38,10 @@ test('groups duplicate polling work by roster and subject', () => {
   assert.equal(groups.get('FA26:CS').trackers.length, 2);
 });
 
-test('alerts only when a section transitions into open', () => {
-  assert.equal(shouldAlertForTransition('C', 'O'), true);
-  assert.equal(shouldAlertForTransition('UNKNOWN', 'O'), true);
-  assert.equal(shouldAlertForTransition('O', 'O'), false);
-  assert.equal(shouldAlertForTransition('O', 'C'), false);
+test('describes open and not-open availability transitions', () => {
+  assert.equal(availabilityEventForTransition('C', 'O'), 'course-opened');
+  assert.equal(availabilityEventForTransition('UNKNOWN', 'O'), 'course-opened');
+  assert.equal(availabilityEventForTransition('O', 'O'), null);
+  assert.equal(availabilityEventForTransition('O', 'C'), 'course-not-open');
+  assert.equal(availabilityEventForTransition('UNKNOWN', 'W'), 'course-not-open');
 });

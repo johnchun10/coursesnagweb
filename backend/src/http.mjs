@@ -34,14 +34,6 @@ export function parseJsonBody(event) {
   }
 }
 
-export function userClaims(event) {
-  const claims = event?.requestContext?.authorizer?.jwt?.claims;
-  if (!claims?.sub) {
-    throw new Error('Authenticated user identity is missing.');
-  }
-  return claims;
-}
-
 export function route(event) {
   return {
     method: event?.requestContext?.http?.method || '',

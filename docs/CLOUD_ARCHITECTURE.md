@@ -1,151 +1,91 @@
 # CourseSnag cloud architecture
 
-CourseSnag keeps the existing Cloudflare Pages site as the permanent frontend and adds an AWS backend that is useful only during enrollment periods.
+Last updated: 2026-08-07
 
-## The two modes
+## Product model
 
-### Local Standby
+CourseSnag has two manually selected operating modes:
 
-- Cloudflare serves `https://coursesnag.pages.dev`.
-- The browser calls Cornell directly, just as the current site does.
-- The watchlist stays in browser `localStorage`.
-- The page must remain open for polling and browser alerts.
-- The AWS monitoring schedule is disabled, so there is no recurring backend work.
+- **Local Standby:** Cloudflare Pages serves the browser tracker year-round. Tracking and browser alerts require the tab and computer to remain on.
+- **Cloud Active:** the same browser watchlist is synchronized to AWS. A shared AWS monitor checks Cornell once per roster-and-subject group every minute and Discord sends direct-message alerts while the computer is off.
 
-### Cloud Active
+Cloudflare hosts the frontend at `https://coursesnag.pages.dev`. AWS hosts only the API, account/watchlist records, monitor, queue, and notification workers.
 
-- The same Cloudflare website remains the user interface.
-- Google identifies the CourseSnag account.
-- AWS stores a copy of the user's cloud-enabled watchlist.
-- One scheduled monitor checks all users' tracked classes together.
-- Newly opened sections are placed on an alert queue.
-- A notification worker sends Discord direct messages.
+## Account and authorization flow
 
-Account storage and scheduled monitoring are separate backend capabilities, but the website exposes Cloud setup only while Cloud Active is available.
+Discord is the only CourseSnag account provider and alert destination.
 
-The website's setup flow presents Local and Cloud as user-facing alert modes. Local is always available. Cloud is selectable only while the AWS mode parameter reports `cloud`; during Local Standby or an AWS outage, the Cloud choice is shown as unavailable and the user can switch back to Local from Settings.
+1. The browser requests a ten-minute, single-use OAuth state from AWS.
+2. Discord asks the user to identify themselves and install CourseSnag to their user account.
+3. Discord returns a one-time code to the AWS callback.
+4. AWS exchanges the code server-side, reads the stable Discord user ID and display profile, then immediately revokes the temporary Discord access token.
+5. AWS redirects the browser with a two-minute, single-use CourseSnag login code.
+6. The browser exchanges that code for a random 30-day CourseSnag session token.
+7. DynamoDB stores only the session token's SHA-256 hash. The browser uses the opaque token as a bearer credential for watchlist requests.
 
-## Watchlist synchronization
+Signing out revokes the server-side session but does not erase the browser-local watchlist. Returning with the same Discord account restores the same cloud watchlist because the Discord user ID is the account key.
 
-The browser watchlist remains the local fallback and is never cleared by signing in or out.
-
-- A sign-in merges cloud-only trackers into browser storage, then uploads local trackers to the account.
-
-## Discord account connection
-
-Discord is linked to an existing Google-backed CourseSnag account using the OAuth2 authorization-code flow:
-
-1. The authenticated browser asks the AWS API to start a Discord connection.
-2. AWS creates a random, ten-minute, single-use state record in DynamoDB.
-3. Discord returns a one-time code to the public AWS callback route.
-4. AWS consumes the state, exchanges the code with the encrypted Discord client secret, and requests the user's `identify` profile.
-5. Only the Discord user ID, username, display name, and avatar hash are stored on the CourseSnag profile. The temporary Discord access token is revoked rather than retained.
-
-Disconnecting removes those Discord identity fields from the CourseSnag profile. The bot token remains server-side in encrypted Parameter Store and is used only by the notification worker.
-- Tracking a section writes locally first and then attempts the account write.
-- Removing a section writes a temporary local deletion marker, or tombstone, so an older cloud copy cannot reappear on the next sign-in.
-- Cloud/API failures leave the local watchlist untouched.
-- Deletion markers expire after 90 days.
-
-This makes switching back to Local Standby automatic for each browser: the same local preferences are already present when scheduled cloud monitoring stops.
-
-## Request and alert flow
+## Request and notification flow
 
 ```text
-Cloudflare Pages
-      |
-      | HTTPS requests carrying a Google ID token
-      v
-API Gateway -- validates the token's issuer and CourseSnag client ID
-      |
-      v
-API Lambda -- reads and writes account/watchlist records
-      |
-      v
-DynamoDB
+Cloudflare Pages browser
+        |
+        | HTTPS + CourseSnag session token
+        v
+API Gateway -> API Lambda -> DynamoDB
+                         \-> FIFO alert queue -> Notifier Lambda -> Discord DM
 
-EventBridge rule (once per minute, disabled in Local Standby)
-      |
-      v
-Monitor Lambda -- batches watchlists by Cornell roster + subject
-      |
-      +--> Cornell Class Roster API
-      |
-      v
-SQS alert queue -- holds alerts and retries transient failures
-      |
-      v
-Notifier Lambda -- retrieves the bot token securely and calls Discord
+EventBridge (once per minute, Cloud Active only)
+        |
+        v
+Monitor Lambda -> Cornell roster API -> DynamoDB status update
+                                  \-> FIFO alert queue on status changes
 ```
 
-## Why each AWS service exists
+Discord messages are generated when:
 
-| Service | Role | Idle-cost approach |
-| --- | --- | --- |
-| API Gateway HTTP API | Gives the website a secure HTTPS backend | Charged by request; no server runs while idle |
-| Lambda | Runs API, monitoring, and notification code | Charged only when invoked |
-| DynamoDB | Stores profiles and cloud watchlists | On-demand capacity; no reserved database server |
-| EventBridge | Invokes the monitor once per minute in Cloud Active | Rule is disabled in Local Standby |
-| SQS | Buffers Discord alerts and retries failures | Charged by request; empty queues do no processing |
-| Parameter Store | Stores mode state and encrypted Discord secrets | Standard parameters have no additional storage charge |
-| CloudWatch Logs | Keeps short diagnostic logs | Seven-day retention prevents indefinite accumulation |
-| AWS Budgets | Emails spend warnings | Annual account-level ceiling is USD 50 |
+- a tracker is first added to the cloud watchlist;
+- a tracker is removed;
+- a section changes to open; or
+- a section changes to closed/waitlisted, including the first observed status after adding it.
 
-## Data model
+Repeated page refreshes update existing tracker records and do not repeat the “tracking added” message.
 
-One DynamoDB table holds two item types.
-
-Profile item:
+## DynamoDB layout
 
 ```text
-PK = USER#<Google subject ID>
+PK = USER#<Discord user ID>
 SK = PROFILE
 ```
 
-Tracker item:
-
 ```text
-PK = USER#<Google subject ID>
+PK = USER#<Discord user ID>
 SK = TRACKER#<roster>:<class number>
 GSI1PK = ACTIVE
-GSI1SK = <roster>#<subject>#<class number>#<Google subject ID>
+GSI1SK = <roster>#<subject>#<class number>#<Discord user ID>
 ```
 
-The primary key efficiently loads one account's watchlist. The secondary index lets the monitor load all active trackers without scanning unrelated profile records.
+Short-lived OAuth states, login codes, and sessions use separate key prefixes and DynamoDB TTL through `expiresAt`.
 
-## Duplicate-work prevention
-
-The monitor groups trackers by Cornell roster and subject. If 100 people track Fall CS classes, CourseSnag fetches that Cornell subject once and compares the response with all 100 watchlists. It does not create one polling process per person.
-
-## Authentication boundaries
-
-- The Google client ID and Discord application ID are public identifiers.
-- Google ID tokens are validated by API Gateway before private API routes run.
-- The Google client secret is not needed for the planned Sign in with Google ID-token flow.
-- The Discord bot token and Discord OAuth client secret are encrypted in SSM Parameter Store and never sent to the browser.
-- AWS deployment uses the temporary `coursesnag` SSO profile rather than root credentials.
+The `GSI1` index lets one monitor invocation load every active tracker. Trackers are grouped by roster and subject so CourseSnag does not poll Cornell separately for every account.
 
 ## Seasonal control
 
-The owner command has three operations:
-
 ```text
-./scripts/season.sh start   # mode=cloud and monitoring enabled
-./scripts/season.sh stop    # shutdown notices, monitoring disabled, mode=local
-./scripts/season.sh status  # display current mode and rule state
+./scripts/season.sh start   # mode=cloud and monitor rule enabled
+./scripts/season.sh stop    # shutdown DMs, monitor disabled, mode=local
+./scripts/season.sh status  # current mode and monitor state
 ```
 
-The initial deployment leaves the rule disabled and the mode set to `local`. Cloud monitoring will not begin merely because the stack exists.
+Local Standby does not delete AWS resources or account data. It disables scheduled monitoring while leaving the small on-demand API available for mode checks and future sign-in.
 
-## Cost guardrails
+## Security and cost boundaries
 
-- Annual AWS budget: USD 50.
-- Monitor timeout: 55 seconds, shorter than the one-minute schedule interval.
-- One monitor execution per minute rather than per user.
-- DynamoDB on-demand capacity.
-- API authentication and request throttling.
-- Seven-day log retention.
-- No EC2, RDS, NAT Gateway, load balancer, Route 53, Fargate, or always-running bot.
-- The artifact bucket automatically expires deployment packages after 30 days.
-
-AWS Budgets sends warnings but is not a hard spending cutoff. The architecture therefore controls cost at the service level as well.
+- Discord's application ID and the API URL are public identifiers.
+- The Discord client secret and bot token are encrypted SSM `SecureString` parameters and are never sent to the browser.
+- OAuth states and login codes are random, single use, and short lived.
+- CourseSnag session tokens are random, revocable, expire after 30 days, and are stored only as hashes in AWS.
+- The API is throttled and private routes authenticate sessions in Lambda.
+- The notifier does not need a continuously connected Discord Gateway process; it uses Discord's HTTP API only when a message is queued.
+- DynamoDB and Lambda are on demand, logs expire after seven days, and deployment artifacts expire after 30 days.
+- The annual AWS budget is USD 50. Budget alerts warn; they are not a hard cutoff.

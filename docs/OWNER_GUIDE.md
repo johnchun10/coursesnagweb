@@ -1,127 +1,86 @@
 # CourseSnag owner guide
 
-This guide separates actions that require the AWS/Google/Discord account owner from changes that can be managed in the repository.
+Last updated: 2026-08-07
 
-## What has already been configured
+## Configured services
 
-### AWS SSO profile
+- Frontend: Cloudflare Pages at `https://coursesnag.pages.dev`
+- AWS account: CLI profile `coursesnag`, region `us-east-1`
+- AWS stack: `coursesnag-dev`
+- API: `https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev`
+- Discord application: `1534241192819163296`
+- Discord callback: `https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev/discord/callback`
+- Annual AWS budget: USD 50 with 20%, 50%, 80%, and 100% alerts
 
-The `coursesnag` CLI profile signs in through AWS IAM Identity Center. It receives temporary credentials for an assigned role and avoids permanent administrator keys. The selected resource region is `us-east-1`.
+The Discord application supports User Install. Its default user scope is `applications.commands`; CourseSnag's sign-in additionally requests `identify`. The website uses the resulting Discord ID for both cloud ownership and direct-message delivery. Google is not part of the account flow.
 
-Verify it with:
+## Secret storage
 
-```bash
-aws sso login --profile coursesnag
-aws sts get-caller-identity --profile coursesnag
-```
-
-The returned ARN should contain `assumed-role` or `AWSReservedSSO`, not `root`.
-
-### Google OAuth client
-
-The web client allows `https://coursesnag.pages.dev` as a JavaScript origin. The frontend receives a Google ID token and sends it to AWS. AWS validates that the token was issued by Google for the CourseSnag client ID.
-
-### Discord application
-
-Discord application `1534241192819163296` represents CourseSnag. Its application ID is public. The bot token and OAuth client secret are passwords and must be stored only as encrypted AWS parameters.
-
-### Cloudflare Pages
-
-Cloudflare continues to deploy and host the static website. AWS does not replace it.
-
-## Current deployed foundation
-
-The `coursesnag-dev` stack is deployed in `us-east-1` and remains in Local Standby. Its API base URL is:
-
-```text
-https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev
-```
-
-The frontend's public API URL and Google client ID live in `config.js`. These are public identifiers; the Google client secret is not used by the browser.
-
-## Testing Google account sync
-
-Google currently authorizes `https://coursesnag.pages.dev`, and AWS CORS permits that same origin. Therefore, the real sign-in and AWS sync test must run from the deployed Cloudflare Pages site. A local test server will intentionally show a safe Local fallback and Google origin warning unless localhost is separately authorized.
-
-After publishing the frontend:
-
-1. Run `./scripts/season.sh start` so the Cloud option becomes available.
-2. Open `https://coursesnag.pages.dev`.
-3. Select **Cloud** in the first-run chooser and press **Continue**. Later, **Settings** opens directly to that mode and provides a switch-mode button.
-4. Sign in with Google.
-5. Track one closed section and confirm the sync status updates in Settings.
-6. Reload the page and confirm the tracker remains.
-7. Remove it and confirm the removal syncs automatically. Run `./scripts/season.sh stop` when Cloud Active is no longer needed.
-
-There is no separate manual sync control. CourseSnag synchronizes on page load, **Refresh now**, tracker additions, and tracker removals.
-
-The Cloud option is intentionally disabled whenever AWS is not in Cloud Active mode.
-
-## Local Cloud-mode development
-
-Direct `file://` pages have an opaque origin and intentionally remain Local-only. To test Cloud-mode UI locally, serve the site over HTTP, such as `http://localhost:4173`, and add that exact origin to both:
-
-- the Google OAuth client's authorized JavaScript origins; and
-- the AWS API CORS allowed origins in the infrastructure configuration.
-
-Keep the production origin authorized as well. Localhost support should be treated as a development setting rather than allowing arbitrary origins.
-
-## Before testing Discord
-
-CourseSnag uses this Discord OAuth callback:
-
-```text
-https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev/discord/callback
-```
-
-Add that exact URL under **Discord Developer Portal → OAuth2 → Redirects** for application `1534241192819163296`.
-
-Use the secret helper, which reads values without echoing them to the terminal:
+Run the helper only when initially configuring or rotating Discord credentials:
 
 ```bash
 ./scripts/set-discord-secrets.sh
 ```
 
-The helper stores two encrypted parameters:
-
-- `/coursesnag/dev/discord/bot-token`
-- `/coursesnag/dev/discord/client-secret`
-
-After both secrets are present, open Cloud settings while signed in with Google and select **Connect Discord**. CourseSnag requests only Discord's `identify` scope. AWS exchanges the one-time code, stores the Discord user ID and display information with the Google profile, and revokes the temporary user access token.
+It writes encrypted values to:
 
 ```text
 /coursesnag/dev/discord/bot-token
 /coursesnag/dev/discord/client-secret
 ```
 
-Neither value is committed to Git or placed in Lambda environment variables.
+Never commit, print, or paste those values. The public application ID is safe to commit.
 
-## Normal seasonal operations
-
-Start Cloud Active only around enrollment events:
+## Deploying repository changes
 
 ```bash
-./scripts/season.sh start
+aws sso login --profile coursesnag
+./scripts/deploy.sh
 ```
 
-Return to Local Standby:
+Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub publishing workflow or manual Cloudflare upload is needed: push the intended frontend commit to the connected branch and wait for Pages to finish.
 
-```bash
-./scripts/season.sh stop
-```
+## Testing cloud tracking
 
-Check the current state at any time:
+1. Run `./scripts/season.sh start`.
+2. Open `https://coursesnag.pages.dev` and select Cloud.
+3. Select **Continue with Discord** and approve the CourseSnag user install/sign-in.
+4. Confirm Settings displays the Discord account.
+5. Add a section and confirm it remains after a page refresh.
+6. Confirm Discord sends “tracking added,” followed by the first observed open/not-open status.
+7. Remove the section and confirm Discord sends “tracking stopped.”
+
+The browser copy and cloud copy are synchronized. Signing out leaves the local browser watchlist intact. Signing in on another device with the same Discord account downloads the cloud watchlist.
+
+## Local Cloud-mode development
+
+Direct `file://` pages have an opaque origin and remain Local-only. To test Cloud mode locally, serve the site over HTTP, such as `http://localhost:4173`, and add that exact origin to the AWS HTTP API CORS configuration while retaining the production origin.
+
+The deployed Discord callback can remain unchanged, but `FRONTEND_ORIGIN` must point to the frontend being tested if the callback should return to localhost. Treat localhost as a temporary development configuration and restore the production origin before release.
+
+## Seasonal operation
 
 ```bash
 ./scripts/season.sh status
+./scripts/season.sh start
+./scripts/season.sh stop
 ```
 
-The stop action asks the operations function to queue a shutdown message before disabling the monitor. Users without a connected Discord account are skipped.
+Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the off-season Discord notice before disabling the monitor and setting Local Standby. Account/watchlist data and the static website remain available.
 
-## Security reminders
+## Operational checks
 
-- Do not use the AWS root identity for deployment.
-- Do not paste bot tokens or client secrets into chat.
-- Do not commit `.env`, OAuth secret JSON files, generated deployment packages, or `node_modules`.
-- Rotate a token immediately if it is accidentally exposed.
-- Review CloudWatch logs and the AWS Billing dashboard during Cloud Active periods.
+```bash
+aws sts get-caller-identity --profile coursesnag
+aws logs tail /aws/lambda/coursesnag-dev-api --since 30m --profile coursesnag --region us-east-1
+aws logs tail /aws/lambda/coursesnag-dev-notifier --since 30m --profile coursesnag --region us-east-1
+```
+
+The caller ARN should contain an assumed SSO role, not `root`. Review CloudWatch and AWS Billing during Cloud Active periods.
+
+## Remaining production work
+
+- Add Privacy and Terms pages and configure their URLs in Discord.
+- Verify notifier retry/dead-letter behavior.
+- Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
+- Add local watchlist export/import.

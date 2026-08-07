@@ -10,9 +10,6 @@ Parameters:
   AllowedOrigin:
     Type: String
     Default: https://coursesnag.pages.dev
-  GoogleClientId:
-    Type: String
-    MinLength: 10
   DiscordApplicationId:
     Type: String
     MinLength: 10
@@ -66,15 +63,9 @@ Resources:
           - DELETE
           - OPTIONS
         MaxAge: 86400
-      Auth:
-        DefaultAuthorizer: GoogleAuthorizer
-        Authorizers:
-          GoogleAuthorizer:
-            IdentitySource: $request.header.Authorization
-            JwtConfiguration:
-              issuer: https://accounts.google.com
-              audience:
-                - !Ref GoogleClientId
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
       Tags:
         Project: CourseSnag
         Environment: !Ref StageName
@@ -169,6 +160,8 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CourseSnagTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AlertQueue.QueueName
         - Statement:
             - Effect: Allow
               Action: ssm:GetParameter
@@ -182,80 +175,60 @@ Resources:
             ApiId: !Ref CourseSnagApi
             Path: /health
             Method: GET
-            Auth:
-              Authorizer: NONE
         Mode:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
             Path: /mode
             Method: GET
-            Auth:
-              Authorizer: NONE
         GetMe:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
             Path: /me
             Method: GET
-            Auth:
-              Authorizer: GoogleAuthorizer
-        PutMe:
+        StartDiscordAuth:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
-            Path: /me
-            Method: PUT
-            Auth:
-              Authorizer: GoogleAuthorizer
-        ConnectDiscord:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref CourseSnagApi
-            Path: /discord/connect
+            Path: /auth/discord
             Method: POST
-            Auth:
-              Authorizer: GoogleAuthorizer
         DiscordCallback:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
             Path: /discord/callback
             Method: GET
-            Auth:
-              Authorizer: NONE
-        DisconnectDiscord:
+        CreateSession:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
-            Path: /discord
+            Path: /auth/session
+            Method: POST
+        DeleteSession:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /session
             Method: DELETE
-            Auth:
-              Authorizer: GoogleAuthorizer
         ListTrackers:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
             Path: /trackers
             Method: GET
-            Auth:
-              Authorizer: GoogleAuthorizer
         CreateTracker:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
             Path: /trackers
             Method: POST
-            Auth:
-              Authorizer: GoogleAuthorizer
         DeleteTracker:
           Type: HttpApi
           Properties:
             ApiId: !Ref CourseSnagApi
             Path: /trackers/{trackerId}
             Method: DELETE
-            Auth:
-              Authorizer: GoogleAuthorizer
 
   MonitorFunction:
     Type: AWS::Serverless::Function

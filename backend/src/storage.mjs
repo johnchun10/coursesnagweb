@@ -18,29 +18,34 @@ const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
 const userPk = userId => `USER#${userId}`;
 const profileKey = userId => ({ PK: userPk(userId), SK: 'PROFILE' });
 
-export async function upsertProfileFromClaims(claims) {
+export async function upsertDiscordProfile(discord) {
   requireConfig('tableName');
   const now = new Date().toISOString();
-  await documentClient.send(new UpdateCommand({
+  const result = await documentClient.send(new UpdateCommand({
     TableName: config.tableName,
-    Key: profileKey(claims.sub),
+    Key: profileKey(discord.userId),
     UpdateExpression: [
       'SET entityType = :profile',
-      'googleEmail = :email',
-      'googleName = :name',
-      'googlePicture = :picture',
+      'userId = :userId',
+      'discordUserId = :userId',
+      'discordUsername = :username',
+      'discordDisplayName = :displayName',
+      'discordAvatar = :avatar',
+      'discordConnectedAt = if_not_exists(discordConnectedAt, :now)',
       'updatedAt = :now',
       'createdAt = if_not_exists(createdAt, :now)'
     ].join(', '),
     ExpressionAttributeValues: {
       ':profile': 'profile',
-      ':email': claims.email || '',
-      ':name': claims.name || '',
-      ':picture': claims.picture || '',
+      ':userId': discord.userId,
+      ':username': discord.username,
+      ':displayName': discord.displayName,
+      ':avatar': discord.avatar || '',
       ':now': now
-    }
+    },
+    ReturnValues: 'ALL_NEW'
   }));
-  return getProfile(claims.sub);
+  return result.Attributes;
 }
 
 export async function getProfile(userId) {
@@ -53,7 +58,7 @@ export async function getProfile(userId) {
   return result.Item || null;
 }
 
-export async function putDiscordOAuthState(userId, state, lifetimeSeconds) {
+export async function putDiscordOAuthState(state, lifetimeSeconds) {
   requireConfig('tableName');
   const nowSeconds = Math.floor(Date.now() / 1000);
   await documentClient.send(new PutCommand({
@@ -62,7 +67,6 @@ export async function putDiscordOAuthState(userId, state, lifetimeSeconds) {
       PK: `OAUTH#${state}`,
       SK: 'DISCORD',
       entityType: 'oauthState',
-      userId,
       createdAt: new Date(nowSeconds * 1000).toISOString(),
       expiresAt: nowSeconds + lifetimeSeconds
     },
@@ -83,47 +87,72 @@ export async function consumeDiscordOAuthState(state) {
   return item;
 }
 
-export async function upsertDiscordConnection(userId, discord) {
+export async function putLoginCode(userId, codeHash, lifetimeSeconds) {
   requireConfig('tableName');
-  const now = new Date().toISOString();
-  const result = await documentClient.send(new UpdateCommand({
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  await documentClient.send(new PutCommand({
     TableName: config.tableName,
-    Key: profileKey(userId),
-    UpdateExpression: [
-      'SET discordUserId = :discordUserId',
-      'discordUsername = :discordUsername',
-      'discordDisplayName = :discordDisplayName',
-      'discordAvatar = :discordAvatar',
-      'discordConnectedAt = :now',
-      'updatedAt = :now'
-    ].join(', '),
-    ExpressionAttributeValues: {
-      ':discordUserId': discord.userId,
-      ':discordUsername': discord.username,
-      ':discordDisplayName': discord.displayName,
-      ':discordAvatar': discord.avatar,
-      ':now': now
+    Item: {
+      PK: `LOGIN#${codeHash}`,
+      SK: 'CODE',
+      entityType: 'loginCode',
+      userId,
+      createdAt: new Date(nowSeconds * 1000).toISOString(),
+      expiresAt: nowSeconds + lifetimeSeconds
     },
-    ConditionExpression: 'attribute_exists(PK)',
-    ReturnValues: 'ALL_NEW'
+    ConditionExpression: 'attribute_not_exists(PK)'
   }));
-  return result.Attributes;
 }
 
-export async function deleteDiscordConnection(userId) {
+export async function consumeLoginCode(codeHash) {
   requireConfig('tableName');
-  const now = new Date().toISOString();
-  const result = await documentClient.send(new UpdateCommand({
+  const result = await documentClient.send(new DeleteCommand({
     TableName: config.tableName,
-    Key: profileKey(userId),
-    UpdateExpression: [
-      'SET updatedAt = :now',
-      'REMOVE discordUserId, discordUsername, discordDisplayName, discordAvatar, discordConnectedAt'
-    ].join(' '),
-    ExpressionAttributeValues: { ':now': now },
-    ReturnValues: 'ALL_NEW'
+    Key: { PK: `LOGIN#${codeHash}`, SK: 'CODE' },
+    ReturnValues: 'ALL_OLD'
   }));
-  return result.Attributes;
+  const item = result.Attributes;
+  if (!item || Number(item.expiresAt || 0) <= Math.floor(Date.now() / 1000)) return null;
+  return item;
+}
+
+export async function putSession(userId, tokenHash, lifetimeSeconds) {
+  requireConfig('tableName');
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiresAt = nowSeconds + lifetimeSeconds;
+  await documentClient.send(new PutCommand({
+    TableName: config.tableName,
+    Item: {
+      PK: `SESSION#${tokenHash}`,
+      SK: 'SESSION',
+      entityType: 'session',
+      userId,
+      createdAt: new Date(nowSeconds * 1000).toISOString(),
+      expiresAt
+    },
+    ConditionExpression: 'attribute_not_exists(PK)'
+  }));
+  return expiresAt;
+}
+
+export async function getSession(tokenHash) {
+  requireConfig('tableName');
+  const result = await documentClient.send(new GetCommand({
+    TableName: config.tableName,
+    Key: { PK: `SESSION#${tokenHash}`, SK: 'SESSION' },
+    ConsistentRead: true
+  }));
+  const item = result.Item;
+  if (!item || Number(item.expiresAt || 0) <= Math.floor(Date.now() / 1000)) return null;
+  return item;
+}
+
+export async function deleteSession(tokenHash) {
+  requireConfig('tableName');
+  await documentClient.send(new DeleteCommand({
+    TableName: config.tableName,
+    Key: { PK: `SESSION#${tokenHash}`, SK: 'SESSION' }
+  }));
 }
 
 export async function listTrackers(userId) {
@@ -159,7 +188,7 @@ export async function putTracker(userId, tracker) {
       'trackerId = :trackerId',
       'catalogNbr = :catalogNbr',
       'title = :title',
-      'section = :section',
+      '#section = :section',
       'ssrComponent = :ssrComponent',
       'classTime = :classTime',
       'enabled = :enabled',
@@ -185,20 +214,40 @@ export async function putTracker(userId, tracker) {
       ':unknown': 'UNKNOWN',
       ':now': now
     },
-    ReturnValues: 'ALL_NEW'
+    ExpressionAttributeNames: {
+      '#section': 'section'
+    },
+    ReturnValues: 'ALL_OLD'
   }));
-  return result.Attributes;
+  return {
+    item: await getTracker(userId, tracker.trackerId),
+    created: !result.Attributes
+  };
 }
 
 export async function deleteTracker(userId, trackerId) {
   requireConfig('tableName');
-  await documentClient.send(new DeleteCommand({
+  const result = await documentClient.send(new DeleteCommand({
     TableName: config.tableName,
     Key: {
       PK: userPk(userId),
       SK: `TRACKER#${trackerId}`
-    }
+    },
+    ReturnValues: 'ALL_OLD'
   }));
+  return result.Attributes || null;
+}
+
+async function getTracker(userId, trackerId) {
+  const result = await documentClient.send(new GetCommand({
+    TableName: config.tableName,
+    Key: {
+      PK: userPk(userId),
+      SK: `TRACKER#${trackerId}`
+    },
+    ConsistentRead: true
+  }));
+  return result.Item;
 }
 
 export async function listAllActiveTrackers() {

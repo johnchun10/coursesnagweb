@@ -43,7 +43,20 @@ async function discordRequest(path, body, attempt = 0) {
   return response.status === 204 ? null : response.json();
 }
 
-function notificationContent(message) {
+function trackerDetails(tracker) {
+  return [
+    tracker.title,
+    tracker.section ? `Section ${tracker.section}` : '',
+    tracker.classNbr ? `Class #${tracker.classNbr}` : '',
+    tracker.classTime
+  ].filter(Boolean).join(' • ');
+}
+
+function courseName(tracker) {
+  return `${tracker.subject || ''} ${tracker.catalogNbr || ''}`.trim() || 'Course';
+}
+
+export function notificationContent(message) {
   if (message.type === 'season-shutdown') {
     return {
       content: 'CourseSnag cloud tracking is going to sleep for the off-season. Your saved browser watchlist can continue tracking locally whenever you keep CourseSnag open. Cloud tracking and Discord alerts will return before the next enrollment period.'
@@ -51,16 +64,31 @@ function notificationContent(message) {
   }
 
   const tracker = message.tracker || {};
-  const course = `${tracker.subject || ''} ${tracker.catalogNbr || ''}`.trim();
-  const details = [
-    tracker.title,
-    tracker.section ? `Section ${tracker.section}` : '',
-    tracker.classNbr ? `Class #${tracker.classNbr}` : '',
-    tracker.classTime
-  ].filter(Boolean).join(' • ');
+  const course = courseName(tracker);
+  const details = trackerDetails(tracker);
+  const footer = '\n\nOpen CourseSnag: https://coursesnag.pages.dev';
+
+  if (message.type === 'tracking-added') {
+    return {
+      content: `📌 **Now tracking ${course}**\n${details}\nI’ll message you when its availability changes.${footer}`
+    };
+  }
+
+  if (message.type === 'tracking-removed') {
+    return {
+      content: `🗑️ **Stopped tracking ${course}**\n${details}${footer}`
+    };
+  }
+
+  if (message.type === 'course-not-open') {
+    const status = message.status === 'W' ? 'waitlisted' : 'not open';
+    return {
+      content: `🔒 **${course} is ${status}.**\n${details}${footer}`
+    };
+  }
 
   return {
-    content: `🎉 **${course || 'A tracked course'} is open!**\n${details}\n\nOpen CourseSnag: https://coursesnag.pages.dev`
+    content: `🎉 **${course} is open!**\n${details}${footer}`
   };
 }
 
