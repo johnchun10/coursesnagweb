@@ -11,7 +11,6 @@
   const DEBOUNCE_DELAY_MS = 400;
   const RATE_LIMIT_MS = 1000; // 1 request per second
   const POLLING_OPTIONS = [10, 30, 60, 300];
-  const DEBUG = false;
 
   // ============================================
   // State
@@ -42,12 +41,15 @@
     searchError: null,
     // Settings
     soundEnabled: false,
-    notifyEnabled: true,
+    notifyEnabled: false,
     pollingIntervalSec: 60,
+    alertMode: null,
+    pendingAlertMode: null,
+    settingsView: 'choice',
     // Alert state
     isAlerting: false,
     alertAudioContext: null,
-    alertOscillator: null
+    alertSource: null
   };
 
   // ============================================
@@ -72,12 +74,25 @@
     testNotifyBtn: document.getElementById('test-notify-btn'),
     notifyStatus: document.getElementById('notify-status'),
     pollingSegmented: document.getElementById('polling-segmented'),
-    pollingIndicator: document.getElementById('polling-indicator'),
+    settingsButton: document.getElementById('settings-btn'),
+    settingsDialog: document.getElementById('settings-dialog'),
+    settingsCloseButton: document.getElementById('settings-close-btn'),
+    settingsDoneButton: document.getElementById('settings-done-btn'),
+    settingsSwitchModeButton: document.getElementById('settings-switch-mode-btn'),
+    settingsEyebrow: document.getElementById('settings-eyebrow'),
+    settingsTitle: document.getElementById('settings-title'),
+    settingsFooterNote: document.getElementById('settings-footer-note'),
+    modeChoiceView: document.getElementById('mode-choice-view'),
+    localSettingsView: document.getElementById('local-settings-view'),
+    cloudSettingsView: document.getElementById('cloud-settings-view'),
+    chooseLocalMode: document.getElementById('choose-local-mode'),
+    chooseCloudMode: document.getElementById('choose-cloud-mode'),
+    cloudOptionStatus: document.getElementById('cloud-option-status'),
+    cloudOptionStatusText: document.getElementById('cloud-option-status-text'),
+    cloudOptionAction: document.getElementById('cloud-option-action'),
+    modeCurrentLabels: document.querySelectorAll('[data-current-mode]'),
     // Alert elements
-    alertBanner: document.getElementById('alert-banner'),
-    alertMessage: document.getElementById('alert-message'),
-    dismiss5minBtn: document.getElementById('dismiss-5min-btn'),
-    untrackAlertBtn: document.getElementById('untrack-alert-btn')
+    alertBanner: document.getElementById('alert-banner')
   };
 
   // Track dismissed alerts (class numbers dismissed for 5 minutes)
@@ -132,30 +147,42 @@
 
     try {
       state.alertAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-      state.alertOscillator = state.alertAudioContext.createOscillator();
-      const gainNode = state.alertAudioContext.createGain();
+      const sampleRate = state.alertAudioContext.sampleRate;
+      const loopDuration = 1.2;
+      const buffer = state.alertAudioContext.createBuffer(
+        1,
+        Math.ceil(sampleRate * loopDuration),
+        sampleRate
+      );
+      const samples = buffer.getChannelData(0);
+      const beeps = [
+        { start: 0.04, duration: 0.18, frequency: 880 },
+        { start: 0.32, duration: 0.18, frequency: 660 }
+      ];
 
-      state.alertOscillator.connect(gainNode);
-      gainNode.connect(state.alertAudioContext.destination);
+      // Build a familiar two-beep alarm in a loop, with short fades to avoid clicks.
+      for (let index = 0; index < samples.length; index++) {
+        const time = index / sampleRate;
+        let sample = 0;
 
-      // Create a pleasant ascending/descending bell-like pattern
-      state.alertOscillator.type = 'sine';
-      gainNode.gain.value = 0.25;
+        for (const beep of beeps) {
+          const elapsed = time - beep.start;
+          if (elapsed < 0 || elapsed > beep.duration) continue;
 
-      // Musical pattern: ascending then sustaining notes
-      const now = state.alertAudioContext.currentTime;
-      const notes = [440, 494, 523, 587, 659]; // A, B, C, D, E notes in Hz
-
-      for (let cycle = 0; cycle < 15; cycle++) {
-        const cycleStart = now + cycle * 1.5;
-        // Play through the ascending notes
-        for (let i = 0; i < notes.length; i++) {
-          const noteStart = cycleStart + i * 0.2;
-          state.alertOscillator.frequency.setValueAtTime(notes[i], noteStart);
+          const attack = Math.min(1, elapsed / 0.012);
+          const release = Math.min(1, (beep.duration - elapsed) / 0.035);
+          const envelope = Math.max(0, Math.min(attack, release));
+          sample += Math.sin(2 * Math.PI * beep.frequency * elapsed) * envelope;
         }
+
+        samples[index] = sample * 0.16;
       }
 
-      state.alertOscillator.start();
+      state.alertSource = state.alertAudioContext.createBufferSource();
+      state.alertSource.buffer = buffer;
+      state.alertSource.loop = true;
+      state.alertSource.connect(state.alertAudioContext.destination);
+      state.alertSource.start();
       state.isAlerting = true;
     } catch (e) {
       console.error('Failed to start alert sound:', e);
@@ -166,10 +193,10 @@
     if (!state.isAlerting) return;
 
     try {
-      if (state.alertOscillator) {
-        state.alertOscillator.stop();
-        state.alertOscillator.disconnect();
-        state.alertOscillator = null;
+      if (state.alertSource) {
+        state.alertSource.stop();
+        state.alertSource.disconnect();
+        state.alertSource = null;
       }
       if (state.alertAudioContext) {
         state.alertAudioContext.close();
@@ -378,11 +405,6 @@
     return true;
   }
 
-  function dismissAlert() {
-    stopAlertSound();
-    els.alertBanner.classList.add('hidden');
-  }
-
   function hasActiveUndismissedOpenAlerts() {
     return state.trackedSections.some(item => {
       const key = `${item.roster}:${item.classNbr}`;
@@ -396,11 +418,11 @@
   function loadSettings() {
     const settings = loadFromStorage('settings', {
       soundEnabled: false,
-      notifyEnabled: true,
+      notifyEnabled: false,
       pollingIntervalSec: 60
     });
-    state.soundEnabled = settings.soundEnabled;
-    state.notifyEnabled = settings.notifyEnabled;
+    state.soundEnabled = Boolean(settings.soundEnabled);
+    state.notifyEnabled = Boolean(settings.notifyEnabled);
     if (!hasNotificationSupport()) {
       state.notifyEnabled = false;
     }
@@ -695,7 +717,26 @@
       return;
     }
 
-    els.tabOpenNoticeText.textContent = 'Keep this tab open to get alerted.';
+    const cloudState = window.CourseSnagCloud?.getState();
+    if (state.alertMode === 'cloud' && (!cloudState || cloudState.mode === 'checking')) {
+      els.tabOpenNotice.dataset.mode = 'account';
+      els.tabOpenNoticeText.textContent = 'Checking cloud status.';
+    } else if (state.alertMode === 'cloud' && cloudState?.mode !== 'cloud') {
+      els.tabOpenNotice.dataset.mode = 'unavailable';
+      els.tabOpenNoticeText.textContent = 'Cloud unavailable.';
+    } else if (state.alertMode === 'cloud' && cloudState?.signedIn) {
+      els.tabOpenNotice.dataset.mode = 'cloud';
+      els.tabOpenNoticeText.textContent = 'Cloud alerts active.';
+    } else if (state.alertMode === 'cloud') {
+      els.tabOpenNotice.dataset.mode = 'account';
+      els.tabOpenNoticeText.textContent = 'Cloud setup incomplete.';
+    } else if (!state.alertMode) {
+      els.tabOpenNotice.dataset.mode = 'account';
+      els.tabOpenNoticeText.textContent = 'Choose an alert mode.';
+    } else {
+      els.tabOpenNotice.dataset.mode = 'local';
+      els.tabOpenNoticeText.textContent = 'Local alerts require this tab.';
+    }
     els.tabOpenNotice.classList.remove('hidden');
   }
 
@@ -929,6 +970,63 @@
     saveToStorage('tracked', state.trackedSections);
   }
 
+  function trackerKey(tracker) {
+    return `${tracker.roster}:${String(tracker.classNbr)}`;
+  }
+
+  function mergeCloudTrackers(cloudTrackers) {
+    const localByKey = new Map(state.trackedSections.map(item => [trackerKey(item), item]));
+    let changed = false;
+
+    for (const cloudTracker of cloudTrackers) {
+      if (!cloudTracker?.roster || !cloudTracker?.classNbr || !cloudTracker?.subject) continue;
+
+      const normalizedCloud = {
+        classNbr: String(cloudTracker.classNbr),
+        roster: String(cloudTracker.roster),
+        subject: String(cloudTracker.subject),
+        catalogNbr: cloudTracker.catalogNbr || '',
+        title: cloudTracker.title || '',
+        section: cloudTracker.section || '',
+        ssrComponent: cloudTracker.ssrComponent || '',
+        classTime: cloudTracker.classTime || '',
+        lastStatus: cloudTracker.lastStatus || 'UNKNOWN',
+        lastCheckedAt: cloudTracker.lastCheckedAt || null
+      };
+      const key = trackerKey(normalizedCloud);
+      const localTracker = localByKey.get(key);
+
+      if (!localTracker) {
+        state.trackedSections.push(normalizedCloud);
+        localByKey.set(key, normalizedCloud);
+        changed = true;
+        continue;
+      }
+
+      for (const field of ['catalogNbr', 'title', 'section', 'ssrComponent', 'classTime']) {
+        if (!localTracker[field] && normalizedCloud[field]) {
+          localTracker[field] = normalizedCloud[field];
+          changed = true;
+        }
+      }
+
+      const localCheckedAt = Date.parse(localTracker.lastCheckedAt || '') || 0;
+      const cloudCheckedAt = Date.parse(normalizedCloud.lastCheckedAt || '') || 0;
+      if (cloudCheckedAt > localCheckedAt) {
+        localTracker.lastStatus = normalizedCloud.lastStatus;
+        localTracker.lastCheckedAt = normalizedCloud.lastCheckedAt;
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+
+    state.trackedKeySet = new Set(state.trackedSections.map(trackerKey));
+    saveTrackedSections();
+    renderTrackedList();
+    renderSearchResults();
+  }
+
   function toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus, classTime = '') {
     const classNbrStr = String(classNbr);
     const trackKey = `${state.currentRoster}:${classNbrStr}`;
@@ -955,6 +1053,7 @@
     saveTrackedSections();
     renderTrackedList();
     renderSearchResults(); // Update track buttons
+    void window.CourseSnagCloud?.trackerAdded(newItem);
 
     // Alert immediately if tracking an already-open section (after DOM is updated)
     if (openStatus === 'O') {
@@ -969,12 +1068,13 @@
       const matchesClassNbr = t.classNbr === classNbrStr;
       const matchesRoster = !roster || t.roster === roster;
       if (matchesClassNbr && matchesRoster) {
-        removed.push(`${t.roster}:${String(t.classNbr)}`);
+        removed.push(t);
         return false;
       }
       return true;
     });
-    for (const key of removed) {
+    for (const tracker of removed) {
+      const key = trackerKey(tracker);
       state.trackedKeySet.delete(key);
       // Clear any dismissed alerts for this class so it can alert again if re-tracked
       if (dismissedAlerts.has(key)) {
@@ -996,6 +1096,9 @@
     saveTrackedSections();
     renderTrackedList();
     renderSearchResults(); // Update track buttons
+    for (const tracker of removed) {
+      void window.CourseSnagCloud?.trackerRemoved(tracker);
+    }
   }
 
   // ============================================
@@ -1010,9 +1113,6 @@
     if (state.isRefreshing) return;
 
     state.isRefreshing = true;
-    els.refreshBtn.disabled = true;
-    els.trackedStatus.textContent = 'Refreshing...';
-    els.trackedStatus.classList.add('loading');
 
     // Group tracked sections by roster + subject
     const groups = {};
@@ -1024,7 +1124,6 @@
       groups[key].items.push(item);
     }
 
-    let updatedCount = 0;
     const newlyOpened = [];
 
     try {
@@ -1043,16 +1142,10 @@
         for (const item of group.items) {
           const newStatus = statusIndex.get(item.classNbr);
           if (newStatus === undefined) {
-            if (DEBUG) {
-              console.warn(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section} (classNbr ${item.classNbr}) not found in API response`);
-            }
             continue;
           }
 
           const oldStatus = item.lastStatus;
-          if (DEBUG) {
-            console.log(`[CourseSnag] ${item.subject} ${item.catalogNbr} sec ${item.section}: ${oldStatus} → ${newStatus}`);
-          }
 
           // Detect transition to OPEN
           if (oldStatus !== 'O' && newStatus === 'O') {
@@ -1061,7 +1154,6 @@
 
           item.lastStatus = newStatus;
           item.lastCheckedAt = new Date().toISOString();
-          updatedCount++;
         }
       }
 
@@ -1104,7 +1196,6 @@
     }
 
     state.isRefreshing = false;
-    els.refreshBtn.disabled = false;
   }
 
   function startPolling() {
@@ -1147,6 +1238,7 @@
   }
 
   function onGlobalKeydown(event) {
+    if (els.settingsDialog?.open) return;
     if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target;
     if (
@@ -1198,12 +1290,25 @@
     untrack(classNbr, roster);
   }
 
-  function onRefreshClick() {
-    refreshTrackedSections();
-    // Also refresh search results if there's an active search
-    if (state.cachedSubject) {
-      state.cachedSubject = null; // Force re-fetch from API
-      performSearch();
+  async function onRefreshClick() {
+    if (state.isRefreshing) return;
+
+    els.refreshBtn.disabled = true;
+    els.refreshBtn.textContent = 'Refreshing...';
+
+    try {
+      const refreshes = [refreshTrackedSections()];
+
+      // Also refresh search results if there's an active search
+      if (state.cachedSubject) {
+        state.cachedSubject = null; // Force re-fetch from API
+        refreshes.push(performSearch());
+      }
+
+      await Promise.all(refreshes);
+    } finally {
+      els.refreshBtn.textContent = 'Refresh now';
+      els.refreshBtn.disabled = false;
     }
   }
 
@@ -1223,16 +1328,17 @@
   }
 
   async function onNotifyToggle() {
-    if (els.notifyToggle.checked) {
-      // Request permission if enabling
+    state.notifyEnabled = els.notifyToggle.checked;
+
+    if (state.notifyEnabled && hasNotificationSupport() && Notification.permission !== 'granted') {
       const granted = await requestNotificationPermission();
-      state.notifyEnabled = granted;
-      els.notifyToggle.checked = granted;
-      updateNotifyStatus();
-    } else {
-      state.notifyEnabled = false;
-      updateNotifyStatus();
+      if (!granted) {
+        state.notifyEnabled = false;
+        els.notifyToggle.checked = false;
+      }
     }
+
+    updateNotifyStatus();
     saveSettings();
   }
 
@@ -1270,10 +1376,6 @@
     }
   }
 
-  function onStopAlert() {
-    dismissAlert();
-  }
-
   function updatePollingUI() {
     if (!els.pollingSegmented) return;
     const buttons = Array.from(els.pollingSegmented.querySelectorAll('.segment-btn'));
@@ -1303,6 +1405,148 @@
     startPolling();
   }
 
+  function cloudIsAvailable() {
+    return window.CourseSnagCloud?.getState?.().mode === 'cloud';
+  }
+
+  function updateCloudModeChoice() {
+    const cloudState = window.CourseSnagCloud?.getState();
+    const checking = !cloudState || cloudState.mode === 'checking';
+    const available = cloudState?.mode === 'cloud';
+
+    els.chooseCloudMode.disabled = !available;
+    els.chooseCloudMode.setAttribute('aria-disabled', available ? 'false' : 'true');
+    els.cloudOptionStatus.className = `mode-choice-availability ${checking ? 'checking' : available ? 'available' : 'unavailable'}`;
+    els.cloudOptionStatusText.textContent = checking ? 'Checking' : available ? 'Available' : 'Unavailable';
+    els.cloudOptionAction.textContent = checking ? 'Checking availability' : available ? 'Select' : 'Unavailable';
+
+    if (!available && state.pendingAlertMode === 'cloud' && state.settingsView === 'choice') {
+      state.pendingAlertMode = null;
+    }
+  }
+
+  function renderAlertMode() {
+    updateCloudModeChoice();
+    for (const label of els.modeCurrentLabels) {
+      label.hidden = label.dataset.currentMode !== state.alertMode;
+    }
+    els.chooseLocalMode.classList.toggle('is-current', state.alertMode === 'local');
+    els.chooseCloudMode.classList.toggle('is-current', state.alertMode === 'cloud');
+    els.chooseLocalMode.classList.toggle('is-selected', state.pendingAlertMode === 'local');
+    els.chooseCloudMode.classList.toggle('is-selected', state.pendingAlertMode === 'cloud');
+    els.chooseLocalMode.setAttribute('aria-pressed', state.pendingAlertMode === 'local' ? 'true' : 'false');
+    els.chooseCloudMode.setAttribute('aria-pressed', state.pendingAlertMode === 'cloud' ? 'true' : 'false');
+
+    const cloudState = window.CourseSnagCloud?.getState();
+    const cloudUnavailable = cloudState && cloudState.mode !== 'checking' && cloudState.mode !== 'cloud';
+    const footerMode = state.alertMode === 'cloud' && cloudUnavailable
+      ? 'unavailable'
+      : state.alertMode || 'unset';
+    const footerModeLabel = footerMode === 'unavailable'
+      ? 'Cloud unavailable'
+      : footerMode === 'unset'
+        ? 'No alert mode selected'
+        : `${footerMode === 'cloud' ? 'Cloud' : 'Local'} mode`;
+    els.settingsButton.textContent = 'Settings';
+    els.settingsButton.dataset.mode = footerMode;
+    els.settingsButton.setAttribute('aria-label', `Settings, ${footerModeLabel}`);
+
+    updateSettingsActions();
+    updateTabOpenNotice();
+  }
+
+  function updateSettingsActions() {
+    const isChoice = state.settingsView === 'choice';
+    els.settingsDoneButton.textContent = isChoice
+      ? 'Continue'
+      : els.settingsDialog.dataset.onboarding === 'true' ? 'Finish setup' : 'Done';
+    els.settingsDoneButton.disabled = isChoice && !state.pendingAlertMode;
+    els.settingsSwitchModeButton.hidden = isChoice;
+
+    if (!isChoice) {
+      const switchingToCloud = state.alertMode !== 'cloud';
+      const cloudAvailable = cloudIsAvailable();
+      els.settingsSwitchModeButton.textContent = switchingToCloud
+        ? cloudAvailable ? 'Switch to Cloud' : 'Cloud unavailable'
+        : 'Switch to Local';
+      els.settingsSwitchModeButton.disabled = switchingToCloud && !cloudAvailable;
+    }
+  }
+
+  function showSettingsView(view) {
+    state.settingsView = view;
+    const isChoice = view === 'choice';
+    els.modeChoiceView.hidden = !isChoice;
+    els.localSettingsView.hidden = view !== 'local';
+    els.cloudSettingsView.hidden = view !== 'cloud';
+    els.settingsFooterNote.textContent = isChoice ? 'Select a mode to continue' : 'Changes save automatically';
+
+    if (isChoice) {
+      els.settingsEyebrow.textContent = els.settingsDialog.dataset.onboarding === 'true' ? 'First setup' : 'Preferences';
+      els.settingsTitle.textContent = 'Choose alert mode';
+    } else {
+      const label = view === 'cloud' ? 'Cloud' : 'Local';
+      els.settingsEyebrow.textContent = `Alert mode / ${label}`;
+      els.settingsTitle.textContent = 'Settings';
+    }
+    updateSettingsActions();
+  }
+
+  function selectAlertMode(mode) {
+    if (mode === 'cloud' && !cloudIsAvailable()) return;
+    state.pendingAlertMode = mode;
+    renderAlertMode();
+  }
+
+  function commitPendingAlertMode() {
+    if (!state.pendingAlertMode) return;
+    state.alertMode = state.pendingAlertMode;
+    saveToStorage('alertMode', state.alertMode);
+    renderAlertMode();
+    showSettingsView(state.alertMode);
+  }
+
+  function switchAlertMode() {
+    const nextMode = state.alertMode === 'cloud' ? 'local' : 'cloud';
+    if (nextMode === 'cloud' && !cloudIsAvailable()) return;
+    state.alertMode = nextMode;
+    state.pendingAlertMode = nextMode;
+    saveToStorage('alertMode', nextMode);
+    renderAlertMode();
+    showSettingsView(nextMode);
+  }
+
+  function onSettingsPrimaryAction() {
+    if (state.settingsView === 'choice') {
+      commitPendingAlertMode();
+    } else {
+      closeSettings();
+    }
+  }
+
+  function openSettings(isOnboarding = false) {
+    if (!els.settingsDialog) return;
+    els.settingsDialog.dataset.onboarding = isOnboarding ? 'true' : 'false';
+    state.pendingAlertMode = isOnboarding ? null : state.alertMode;
+    renderAlertMode();
+    showSettingsView(isOnboarding || !state.alertMode ? 'choice' : state.alertMode);
+    if (!els.settingsDialog.open) els.settingsDialog.showModal();
+  }
+
+  function closeSettings() {
+    if (els.settingsDialog?.open) els.settingsDialog.close();
+  }
+
+  function finishSettingsSession() {
+    if (els.settingsDialog?.dataset.onboarding === 'true' && state.alertMode) {
+      saveToStorage('onboardingComplete', true);
+    }
+    if (state.isAlerting) {
+      stopAlertSound();
+      els.testSoundBtn.textContent = 'Test';
+    }
+  }
+
   // ============================================
   // Initialization
   // ============================================
@@ -1322,26 +1566,49 @@
     els.testSoundBtn.addEventListener('click', onTestSound);
     els.notifyToggle.addEventListener('change', onNotifyToggle);
     els.testNotifyBtn.addEventListener('click', onTestNotify);
+    els.settingsButton.addEventListener('click', () => openSettings(false));
+    els.settingsCloseButton.addEventListener('click', closeSettings);
+    els.settingsDoneButton.addEventListener('click', onSettingsPrimaryAction);
+    els.settingsSwitchModeButton.addEventListener('click', switchAlertMode);
+    els.chooseLocalMode.addEventListener('click', () => selectAlertMode('local'));
+    els.chooseCloudMode.addEventListener('click', () => selectAlertMode('cloud'));
+    els.settingsDialog.addEventListener('close', finishSettingsSession);
+    els.settingsDialog.addEventListener('click', event => {
+      if (event.target === els.settingsDialog) closeSettings();
+    });
     // Allow clicking on notify status to request permission
     els.notifyStatus.addEventListener('click', async () => {
       if (hasNotificationSupport() && Notification.permission === 'default') {
-        await requestNotificationPermission();
+        const granted = await requestNotificationPermission();
+        if (granted) {
+          state.notifyEnabled = true;
+          els.notifyToggle.checked = true;
+          saveSettings();
+        }
       }
     });
     if (els.pollingSegmented) {
       els.pollingSegmented.addEventListener('click', onPollingClick);
     }
+    window.addEventListener('coursesnag:cloud-state', renderAlertMode);
 
     // Load settings and data
     loadSettings();
+    const savedAlertMode = loadFromStorage('alertMode', null);
+    state.alertMode = savedAlertMode === 'local' || savedAlertMode === 'cloud'
+      ? savedAlertMode
+      : null;
+    renderAlertMode();
     loadTrackedSections();
     loadDismissedAlerts();
-    await loadRosters();
-
-    // Request notification permission on first visit if enabled
-    if (state.notifyEnabled && hasNotificationSupport() && Notification.permission === 'default') {
-      await requestNotificationPermission();
+    if (!state.alertMode) {
+      requestAnimationFrame(() => openSettings(true));
     }
+    void window.CourseSnagCloud?.initialize({
+      getLocalTrackers: () => state.trackedSections.map(item => ({ ...item })),
+      mergeCloudTrackers
+    });
+    await loadRosters();
 
     // Enable refresh button and start polling
     els.refreshBtn.disabled = false;
@@ -1355,13 +1622,6 @@
       refreshTrackedSections();
     }
   }
-
-  // Expose public methods for onclick handlers
-  window.app = {
-    toggleTrack,
-    untrack,
-    toggleCourse
-  };
 
   // Start the app
   init();

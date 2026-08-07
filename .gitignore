@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+
+# Google OAuth client credentials (contains a client secret)
+client_secret_*.apps.googleusercontent.com.json
+
+# Local tooling and generated deployment artifacts
+.DS_Store
+node_modules/
+coverage/
+build/
+.playwright-cli/
+output/playwright/
+infra/parameters.local.env

@@ -1,0 +1,384 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CourseSnag seasonal serverless backend
+
+Parameters:
+  StageName:
+    Type: String
+    Default: dev
+    AllowedPattern: '[a-z0-9-]+'
+  AllowedOrigin:
+    Type: String
+    Default: https://coursesnag.pages.dev
+  GoogleClientId:
+    Type: String
+    MinLength: 10
+  DiscordApplicationId:
+    Type: String
+    MinLength: 10
+  BudgetAlertEmail:
+    Type: String
+    Default: ''
+  AnnualBudgetAmount:
+    Type: Number
+    Default: 50
+
+Conditions:
+  HasBudgetAlertEmail: !Not [!Equals [!Ref BudgetAlertEmail, '']]
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures:
+      - arm64
+    MemorySize: 256
+    Timeout: 15
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref CourseSnagTable
+        ALERT_QUEUE_URL: !Ref AlertQueue
+        MODE_PARAMETER_NAME: !Ref ModeParameter
+        DISCORD_BOT_TOKEN_PARAMETER: !Sub /coursesnag/${StageName}/discord/bot-token
+        STAGE_NAME: !Ref StageName
+        CORNELL_API_BASE: https://classes.cornell.edu/api/2.0
+    Tags:
+      Project: CourseSnag
+      Environment: !Ref StageName
+
+Resources:
+  CourseSnagApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref StageName
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - authorization
+          - content-type
+        AllowMethods:
+          - GET
+          - PUT
+          - POST
+          - DELETE
+          - OPTIONS
+        MaxAge: 86400
+      Auth:
+        DefaultAuthorizer: GoogleAuthorizer
+        Authorizers:
+          GoogleAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: https://accounts.google.com
+              audience:
+                - !Ref GoogleClientId
+      Tags:
+        Project: CourseSnag
+        Environment: !Ref StageName
+
+  CourseSnagTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: RetainExceptOnCreate
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: CourseSnag
+        - Key: Environment
+          Value: !Ref StageName
+
+  AlertDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-alert-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      Tags:
+        - Key: Project
+          Value: CourseSnag
+        - Key: Environment
+          Value: !Ref StageName
+
+  AlertQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-alerts.fifo
+      FifoQueue: true
+      VisibilityTimeout: 180
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AlertDeadLetterQueue.Arn
+        maxReceiveCount: 5
+      Tags:
+        - Key: Project
+          Value: CourseSnag
+        - Key: Environment
+          Value: !Ref StageName
+
+  ModeParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /coursesnag/${StageName}/mode
+      Type: String
+      Value: local
+      Description: CourseSnag seasonal operating mode
+      Tags:
+        Project: CourseSnag
+        Environment: !Ref StageName
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-api
+      CodeUri: ../backend/
+      Handler: src/api.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CourseSnagTable
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /health
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        Mode:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /mode
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        GetMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /me
+            Method: GET
+            Auth:
+              Authorizer: GoogleAuthorizer
+        PutMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /me
+            Method: PUT
+            Auth:
+              Authorizer: GoogleAuthorizer
+        ListTrackers:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /trackers
+            Method: GET
+            Auth:
+              Authorizer: GoogleAuthorizer
+        CreateTracker:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /trackers
+            Method: POST
+            Auth:
+              Authorizer: GoogleAuthorizer
+        DeleteTracker:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /trackers/{trackerId}
+            Method: DELETE
+            Auth:
+              Authorizer: GoogleAuthorizer
+
+  MonitorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-monitor
+      CodeUri: ../backend/
+      Handler: src/monitor.handler
+      Timeout: 55
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CourseSnagTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AlertQueue.QueueName
+
+  MonitorRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}-monitor
+      Description: Runs the shared CourseSnag monitor only during Cloud Active mode
+      ScheduleExpression: rate(1 minute)
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt MonitorFunction.Arn
+          Id: CourseSnagMonitor
+
+  MonitorRulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MonitorFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MonitorRule.Arn
+
+  NotifierFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-notifier
+      CodeUri: ../backend/
+      Handler: src/notifier.handler
+      Timeout: 30
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt AlertQueue.QueueName
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/coursesnag/${StageName}/discord/bot-token
+      Events:
+        Alerts:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AlertQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  OperationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-operations
+      CodeUri: ../backend/
+      Handler: src/operations.handler
+      Timeout: 30
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CourseSnagTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AlertQueue.QueueName
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-api
+      RetentionInDays: 7
+
+  MonitorLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-monitor
+      RetentionInDays: 7
+
+  NotifierLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-notifier
+      RetentionInDays: 7
+
+  OperationsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-operations
+      RetentionInDays: 7
+
+  AnnualCostBudget:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudgetAlertEmail
+    Properties:
+      Budget:
+        BudgetName: coursesnag-annual-cost-ceiling
+        BudgetLimit:
+          Amount: !Ref AnnualBudgetAmount
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: ANNUALLY
+      NotificationsWithSubscribers:
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: ACTUAL
+            Threshold: 20
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - Address: !Ref BudgetAlertEmail
+              SubscriptionType: EMAIL
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: ACTUAL
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - Address: !Ref BudgetAlertEmail
+              SubscriptionType: EMAIL
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: ACTUAL
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - Address: !Ref BudgetAlertEmail
+              SubscriptionType: EMAIL
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: ACTUAL
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - Address: !Ref BudgetAlertEmail
+              SubscriptionType: EMAIL
+
+Outputs:
+  ApiBaseUrl:
+    Description: CourseSnag backend API base URL
+    Value: !Sub https://${CourseSnagApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}
+  TableName:
+    Value: !Ref CourseSnagTable
+  MonitorRuleName:
+    Value: !Ref MonitorRule
+  OperationsFunctionName:
+    Value: !Ref OperationsFunction
+  ModeParameterName:
+    Value: !Ref ModeParameter
+  AlertQueueUrl:
+    Value: !Ref AlertQueue
+  DiscordApplicationId:
+    Value: !Ref DiscordApplicationId
