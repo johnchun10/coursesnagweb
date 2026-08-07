@@ -30,6 +30,18 @@ The website's setup flow presents Local and Cloud as user-facing alert modes. Lo
 The browser watchlist remains the local fallback and is never cleared by signing in or out.
 
 - A sign-in merges cloud-only trackers into browser storage, then uploads local trackers to the account.
+
+## Discord account connection
+
+Discord is linked to an existing Google-backed CourseSnag account using the OAuth2 authorization-code flow:
+
+1. The authenticated browser asks the AWS API to start a Discord connection.
+2. AWS creates a random, ten-minute, single-use state record in DynamoDB.
+3. Discord returns a one-time code to the public AWS callback route.
+4. AWS consumes the state, exchanges the code with the encrypted Discord client secret, and requests the user's `identify` profile.
+5. Only the Discord user ID, username, display name, and avatar hash are stored on the CourseSnag profile. The temporary Discord access token is revoked rather than retained.
+
+Disconnecting removes those Discord identity fields from the CourseSnag profile. The bot token remains server-side in encrypted Parameter Store and is used only by the notification worker.
 - Tracking a section writes locally first and then attempts the account write.
 - Removing a section writes a temporary local deletion marker, or tombstone, so an older cloud copy cannot reappear on the next sign-in.
 - Cloud/API failures leave the local watchlist untouched.

@@ -68,6 +68,14 @@ Keep the production origin authorized as well. Localhost support should be treat
 
 ## Before testing Discord
 
+CourseSnag uses this Discord OAuth callback:
+
+```text
+https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev/discord/callback
+```
+
+Add that exact URL under **Discord Developer Portal → OAuth2 → Redirects** for application `1534241192819163296`.
+
 Use the secret helper, which reads values without echoing them to the terminal:
 
 ```bash
@@ -75,6 +83,11 @@ Use the secret helper, which reads values without echoing them to the terminal:
 ```
 
 The helper stores two encrypted parameters:
+
+- `/coursesnag/dev/discord/bot-token`
+- `/coursesnag/dev/discord/client-secret`
+
+After both secrets are present, open Cloud settings while signed in with Google and select **Connect Discord**. CourseSnag requests only Discord's `identify` scope. AWS exchanges the one-time code, stores the Discord user ID and display information with the Google profile, and revokes the temporary user access token.
 
 ```text
 /coursesnag/dev/discord/bot-token

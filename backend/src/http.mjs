@@ -11,6 +11,17 @@ export function json(statusCode, body) {
   };
 }
 
+export function redirect(location, statusCode = 302) {
+  return {
+    statusCode,
+    headers: {
+      'cache-control': 'no-store',
+      location
+    },
+    body: ''
+  };
+}
+
 export function parseJsonBody(event) {
   if (!event.body) return {};
   try {

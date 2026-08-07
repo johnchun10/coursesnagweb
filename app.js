@@ -1594,6 +1594,15 @@
       els.pollingSegmented.addEventListener('click', onPollingClick);
     }
     window.addEventListener('coursesnag:cloud-state', renderAlertMode);
+    window.addEventListener('coursesnag:discord-return', () => {
+      if (cloudIsAvailable()) {
+        state.alertMode = 'cloud';
+        state.pendingAlertMode = 'cloud';
+        saveToStorage('alertMode', 'cloud');
+      }
+      renderAlertMode();
+      openSettings(false);
+    });
 
     // Load settings and data
     loadSettings();

@@ -11,7 +11,9 @@
     mode: 'checking',
     credential: null,
     user: null,
+    profile: null,
     syncing: false,
+    discordBusy: false,
     initialized: false,
     googleReady: false,
     adapter: null,
@@ -54,7 +56,8 @@
     return {
       mode: state.mode,
       signedIn: Boolean(state.credential),
-      syncing: state.syncing
+      syncing: state.syncing,
+      discordConnected: Boolean(state.profile?.discordConnected)
     };
   }
 
@@ -114,10 +117,12 @@
     state.els.signOutButton.hidden = !signedIn;
 
     if (!signedIn) {
+      state.profile = null;
       state.els.profileName.textContent = '';
       state.els.profileEmail.textContent = '';
       state.els.avatar.removeAttribute('src');
       if (!state.syncing) setSyncStatus('');
+      renderDiscordAccount();
       announceState();
       return;
     }
@@ -130,7 +135,43 @@
     } else {
       state.els.avatar.removeAttribute('src');
     }
+    renderDiscordAccount();
     announceState();
+  }
+
+  function renderDiscordAccount() {
+    if (!state.els.discordProfileName) return;
+    const signedIn = Boolean(state.credential && state.user);
+    const connected = Boolean(state.profile?.discordConnected);
+
+    if (!signedIn) {
+      state.els.discordProfileName.textContent = 'Sign in with Google first';
+      state.els.discordProfileDetail.textContent = 'Google links Discord to your CourseSnag account';
+      state.els.discordButton.textContent = 'Connect Discord';
+      state.els.discordButton.disabled = true;
+      return;
+    }
+
+    if (!state.profile) {
+      state.els.discordProfileName.textContent = 'Checking connection';
+      state.els.discordProfileDetail.textContent = 'Loading Discord account status';
+      state.els.discordButton.textContent = 'Connect Discord';
+      state.els.discordButton.disabled = true;
+      return;
+    }
+
+    if (connected) {
+      state.els.discordProfileName.textContent = state.profile.discord?.displayName || 'Discord connected';
+      state.els.discordProfileDetail.textContent = state.profile.discord?.username
+        ? `@${state.profile.discord.username}`
+        : 'Ready for direct-message alerts';
+      state.els.discordButton.textContent = state.discordBusy ? 'Disconnecting…' : 'Disconnect';
+    } else {
+      state.els.discordProfileName.textContent = 'Not connected';
+      state.els.discordProfileDetail.textContent = 'Required for direct-message alerts';
+      state.els.discordButton.textContent = state.discordBusy ? 'Opening Discord…' : 'Connect Discord';
+    }
+    state.els.discordButton.disabled = state.discordBusy;
   }
 
   async function publicFetch(path) {
@@ -211,7 +252,9 @@
     setSyncStatus('Synchronizing local and cloud watchlists…', 'working');
 
     try {
-      await cloudFetch('/me', { method: 'PUT' });
+      const profilePayload = await cloudFetch('/me', { method: 'PUT' });
+      state.profile = profilePayload.profile;
+      renderDiscordAccount();
       const cloudPayload = await cloudFetch('/trackers');
       const tombstones = loadTombstones();
       const retainedCloud = [];
@@ -258,11 +301,57 @@
   function signOut(message = 'Signed out.') {
     state.credential = null;
     state.user = null;
+    state.profile = null;
     sessionStorage.removeItem(CREDENTIAL_KEY);
     if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect();
     renderAccount();
     setSyncStatus(message);
     renderGoogleButton();
+  }
+
+  async function toggleDiscordConnection() {
+    if (!state.credential || !state.profile || state.discordBusy) return;
+    state.discordBusy = true;
+    renderDiscordAccount();
+
+    try {
+      if (state.profile.discordConnected) {
+        const payload = await cloudFetch('/discord', { method: 'DELETE' });
+        state.profile = payload.profile;
+        setSyncStatus('Discord disconnected.', 'success');
+      } else {
+        setSyncStatus('Opening Discord authorization…', 'working');
+        const payload = await cloudFetch('/discord/connect', { method: 'POST' });
+        if (!payload?.authorizationUrl) throw new Error('Discord authorization could not be started.');
+        window.location.assign(payload.authorizationUrl);
+      }
+    } catch (error) {
+      console.error('Discord connection update failed:', error);
+      setSyncStatus(error.message, 'error');
+    } finally {
+      state.discordBusy = false;
+      renderDiscordAccount();
+    }
+  }
+
+  function handleDiscordReturn() {
+    const current = new URL(window.location.href);
+    const result = current.searchParams.get('discord');
+    if (!result) return;
+
+    current.searchParams.delete('discord');
+    window.history.replaceState({}, '', `${current.pathname}${current.search}${current.hash}`);
+
+    if (result === 'connected') {
+      setSyncStatus('Discord connected.', 'success');
+    } else if (result === 'cancelled') {
+      setSyncStatus('Discord connection cancelled.');
+    } else {
+      setSyncStatus('Discord could not be connected. Try again.', 'error');
+    }
+    window.dispatchEvent(new CustomEvent('coursesnag:discord-return', {
+      detail: { result }
+    }));
   }
 
   function renderGoogleButton() {
@@ -348,16 +437,21 @@
       profileName: document.getElementById('cloud-profile-name'),
       profileEmail: document.getElementById('cloud-profile-email'),
       avatar: document.getElementById('cloud-avatar'),
-      signOutButton: document.getElementById('cloud-signout-btn')
+      signOutButton: document.getElementById('cloud-signout-btn'),
+      discordProfileName: document.getElementById('discord-profile-name'),
+      discordProfileDetail: document.getElementById('discord-profile-detail'),
+      discordButton: document.getElementById('discord-connect-btn')
     };
 
     state.els.signOutButton.addEventListener('click', () => signOut());
+    state.els.discordButton.addEventListener('click', toggleDiscordConnection);
     restoreCredential();
     renderMode();
     renderAccount();
 
     await Promise.all([fetchMode(), setupGoogleIdentity()]);
     if (state.credential) await syncNow();
+    handleDiscordReturn();
   }
 
   window.CourseSnagCloud = {

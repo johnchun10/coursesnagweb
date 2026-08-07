@@ -4,6 +4,7 @@ import {
   DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
+  PutCommand,
   QueryCommand,
   ScanCommand,
   UpdateCommand
@@ -50,6 +51,79 @@ export async function getProfile(userId) {
     ConsistentRead: true
   }));
   return result.Item || null;
+}
+
+export async function putDiscordOAuthState(userId, state, lifetimeSeconds) {
+  requireConfig('tableName');
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  await documentClient.send(new PutCommand({
+    TableName: config.tableName,
+    Item: {
+      PK: `OAUTH#${state}`,
+      SK: 'DISCORD',
+      entityType: 'oauthState',
+      userId,
+      createdAt: new Date(nowSeconds * 1000).toISOString(),
+      expiresAt: nowSeconds + lifetimeSeconds
+    },
+    ConditionExpression: 'attribute_not_exists(PK)'
+  }));
+}
+
+export async function consumeDiscordOAuthState(state) {
+  requireConfig('tableName');
+  if (!state) return null;
+  const result = await documentClient.send(new DeleteCommand({
+    TableName: config.tableName,
+    Key: { PK: `OAUTH#${state}`, SK: 'DISCORD' },
+    ReturnValues: 'ALL_OLD'
+  }));
+  const item = result.Attributes;
+  if (!item || Number(item.expiresAt || 0) <= Math.floor(Date.now() / 1000)) return null;
+  return item;
+}
+
+export async function upsertDiscordConnection(userId, discord) {
+  requireConfig('tableName');
+  const now = new Date().toISOString();
+  const result = await documentClient.send(new UpdateCommand({
+    TableName: config.tableName,
+    Key: profileKey(userId),
+    UpdateExpression: [
+      'SET discordUserId = :discordUserId',
+      'discordUsername = :discordUsername',
+      'discordDisplayName = :discordDisplayName',
+      'discordAvatar = :discordAvatar',
+      'discordConnectedAt = :now',
+      'updatedAt = :now'
+    ].join(', '),
+    ExpressionAttributeValues: {
+      ':discordUserId': discord.userId,
+      ':discordUsername': discord.username,
+      ':discordDisplayName': discord.displayName,
+      ':discordAvatar': discord.avatar,
+      ':now': now
+    },
+    ConditionExpression: 'attribute_exists(PK)',
+    ReturnValues: 'ALL_NEW'
+  }));
+  return result.Attributes;
+}
+
+export async function deleteDiscordConnection(userId) {
+  requireConfig('tableName');
+  const now = new Date().toISOString();
+  const result = await documentClient.send(new UpdateCommand({
+    TableName: config.tableName,
+    Key: profileKey(userId),
+    UpdateExpression: [
+      'SET updatedAt = :now',
+      'REMOVE discordUserId, discordUsername, discordDisplayName, discordAvatar, discordConnectedAt'
+    ].join(' '),
+    ExpressionAttributeValues: { ':now': now },
+    ReturnValues: 'ALL_NEW'
+  }));
+  return result.Attributes;
 }
 
 export async function listTrackers(userId) {

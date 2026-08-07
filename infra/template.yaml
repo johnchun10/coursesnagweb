@@ -39,6 +39,9 @@ Globals:
         ALERT_QUEUE_URL: !Ref AlertQueue
         MODE_PARAMETER_NAME: !Ref ModeParameter
         DISCORD_BOT_TOKEN_PARAMETER: !Sub /coursesnag/${StageName}/discord/bot-token
+        DISCORD_CLIENT_SECRET_PARAMETER: !Sub /coursesnag/${StageName}/discord/client-secret
+        DISCORD_APPLICATION_ID: !Ref DiscordApplicationId
+        FRONTEND_ORIGIN: !Ref AllowedOrigin
         STAGE_NAME: !Ref StageName
         CORNELL_API_BASE: https://classes.cornell.edu/api/2.0
     Tags:
@@ -107,6 +110,9 @@ Resources:
             ProjectionType: ALL
       SSESpecification:
         SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
       Tags:
         - Key: Project
           Value: CourseSnag
@@ -166,7 +172,9 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ssm:GetParameter
-              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
+              Resource:
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/coursesnag/${StageName}/discord/client-secret
       Events:
         Health:
           Type: HttpApi
@@ -198,6 +206,30 @@ Resources:
             ApiId: !Ref CourseSnagApi
             Path: /me
             Method: PUT
+            Auth:
+              Authorizer: GoogleAuthorizer
+        ConnectDiscord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /discord/connect
+            Method: POST
+            Auth:
+              Authorizer: GoogleAuthorizer
+        DiscordCallback:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /discord/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        DisconnectDiscord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /discord
+            Method: DELETE
             Auth:
               Authorizer: GoogleAuthorizer
         ListTrackers:
