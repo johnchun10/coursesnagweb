@@ -164,14 +164,13 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CourseSnagTable
-        - SQSSendMessagePolicy:
-            QueueName: !GetAtt AlertQueue.QueueName
         - Statement:
             - Effect: Allow
               Action: ssm:GetParameter
               Resource:
                 - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
                 - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/coursesnag/${StageName}/discord/client-secret
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/coursesnag/${StageName}/discord/bot-token
       Events:
         Health:
           Type: HttpApi
@@ -246,6 +245,10 @@ Resources:
             TableName: !Ref CourseSnagTable
         - SQSSendMessagePolicy:
             QueueName: !GetAtt AlertQueue.QueueName
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
 
   InteractionsFunction:
     Type: AWS::Serverless::Function
@@ -257,6 +260,10 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CourseSnagTable
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
       Events:
         DiscordInteractions:
           Type: HttpApi
@@ -301,6 +308,9 @@ Resources:
             - Effect: Allow
               Action: ssm:GetParameter
               Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/coursesnag/${StageName}/discord/bot-token
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ModeParameter}
       Events:
         Alerts:
           Type: SQS
@@ -322,6 +332,46 @@ Resources:
             TableName: !Ref CourseSnagTable
         - SQSSendMessagePolicy:
             QueueName: !GetAtt AlertQueue.QueueName
+
+  OperationsAlertTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasBudgetAlertEmail
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-operations-alerts
+      Tags:
+        - Key: Project
+          Value: CourseSnag
+        - Key: Environment
+          Value: !Ref StageName
+
+  OperationsAlertSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasBudgetAlertEmail
+    Properties:
+      Protocol: email
+      Endpoint: !Ref BudgetAlertEmail
+      TopicArn: !Ref OperationsAlertTopic
+
+  AlertDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasBudgetAlertEmail
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-dead-letter-messages
+      AlarmDescription: CourseSnag Discord alerts have entered the dead-letter queue and require inspection.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt AlertDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref OperationsAlertTopic
 
   ApiLogGroup:
     Type: AWS::Logs::LogGroup

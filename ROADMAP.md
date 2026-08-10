@@ -74,11 +74,11 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 
 ### High priority
 
-- [ ] Detect users who complete Discord OAuth without joining the shared server or allowing bot DMs; show actionable recovery instead of silently accepting a connection whose alerts cannot be delivered.
-- [ ] Record and surface Cornell group-level monitor failures so a partial Cornell outage cannot look like a fully healthy Lambda run.
-- [ ] Add an owner alarm for new dead-letter messages and define a safe inspect/delete workflow.
-- [ ] Prevent transition races: no course alert should arrive after OFFLINE, and ONLINE should precede the first resumed course alert.
-- [ ] Make `/tracked` state that monitoring is paused when CourseSnag is in Local Standby.
+- [x] Detect users who complete Discord OAuth without joining the shared server or allowing bot DMs; show actionable recovery instead of silently accepting a connection whose alerts cannot be delivered.
+- [x] Record and surface Cornell group-level monitor failures so a partial Cornell outage cannot look like a fully healthy Lambda run.
+- [x] Add an owner alarm for new dead-letter messages and define a safe inspect/delete workflow.
+- [x] Prevent transition races: no course alert should arrive after OFFLINE, and ONLINE should precede the first resumed course alert.
+- [x] Make `/tracked` state that monitoring is paused when CourseSnag is in Local Standby.
 
 ### Medium priority
 

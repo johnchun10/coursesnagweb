@@ -282,6 +282,13 @@
         await syncNow();
       } else if (result === 'cancelled') {
         setSyncStatus('Discord sign-in cancelled.');
+      } else if (result === 'delivery-unavailable') {
+        finalResult = result;
+        clearSession();
+        setSyncStatus(
+          'CourseSnag could not send you a Discord DM. Join the shared CourseSnag server and allow direct messages, then try again.',
+          'error'
+        );
       } else {
         throw new Error('Discord could not be connected. Try again.');
       }

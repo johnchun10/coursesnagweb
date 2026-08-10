@@ -66,7 +66,7 @@ show_status() {
   local api_function monitor_function notifier_function interactions_function operations_function
   local api_health health_code health_seconds
   local tracker_count account_json account_count queue_json pending in_flight delayed dead_letters
-  local monitor_json monitor_completed monitor_checked monitor_groups monitor_alerts
+  local monitor_json monitor_status monitor_completed monitor_checked monitor_groups monitor_failed_groups monitor_alerts
   local end_time start_time metric_queries metric_data
   local budget_json budget_limit actual_spend forecast_spend
 
@@ -83,11 +83,12 @@ show_status() {
   interactions_function="$(stack_resource InteractionsFunction)"
   operations_function="$(stack_resource OperationsFunction)"
 
-  if [[ "$mode" == "cloud" ]]; then
-    mode_label="Cloud Active"
-  else
-    mode_label="Local Standby"
-  fi
+  case "$mode" in
+    cloud) mode_label="Cloud Active" ;;
+    starting) mode_label="Starting Cloud monitoring" ;;
+    stopping) mode_label="Stopping Cloud monitoring" ;;
+    *) mode_label="Local Standby" ;;
+  esac
   if [[ "$rule_state" == "ENABLED" ]]; then
     schedule_label="Enabled (once per minute)"
   else
@@ -146,9 +147,11 @@ show_status() {
     --output json \
     --region "$AWS_REGION" \
     --profile "$AWS_PROFILE" 2>/dev/null || echo '{}')"
+  monitor_status="$(jq -r '.Item.status.S // "unknown"' <<<"$monitor_json")"
   monitor_completed="$(jq -r '.Item.completedAt.S // empty' <<<"$monitor_json")"
   monitor_checked="$(jq -r '.Item.checked.N // "0"' <<<"$monitor_json")"
   monitor_groups="$(jq -r '.Item.groups.N // "0"' <<<"$monitor_json")"
+  monitor_failed_groups="$(jq -r '.Item.failedGroups.N // "0"' <<<"$monitor_json")"
   monitor_alerts="$(jq -r '.Item.alertsQueued.N // "0"' <<<"$monitor_json")"
 
   end_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -223,7 +226,10 @@ show_status() {
   echo "  Active trackers: $tracker_count"
   if [[ -n "$monitor_completed" ]]; then
     echo "  Last monitor run: $monitor_completed"
-    echo "    Checked: $monitor_checked | Groups: $monitor_groups | Alerts queued: $monitor_alerts"
+    echo "    Status: $monitor_status | Checked: $monitor_checked | Groups: $monitor_groups | Failed groups: $monitor_failed_groups | Alerts queued: $monitor_alerts"
+    if [[ "$monitor_status" == "degraded" ]]; then
+      echo "    Attention: At least one Cornell roster/subject group could not be checked."
+    fi
   else
     echo "  Last monitor run: No detailed run recorded yet"
   fi
@@ -281,6 +287,14 @@ case "$ACTION" in
     aws ssm put-parameter \
       --name "$MODE_PARAMETER" \
       --type String \
+      --value starting \
+      --overwrite \
+      --region "$AWS_REGION" \
+      --profile "$AWS_PROFILE" >/dev/null
+    announce_season_status "announce-season-online"
+    aws ssm put-parameter \
+      --name "$MODE_PARAMETER" \
+      --type String \
       --value cloud \
       --overwrite \
       --region "$AWS_REGION" \
@@ -289,7 +303,6 @@ case "$ACTION" in
       --name "$RULE_NAME" \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE"
-    announce_season_status "announce-season-online"
     echo "CourseSnag is in Cloud Active mode. The shared monitor runs once per minute."
     ;;
   stop)
@@ -298,11 +311,18 @@ case "$ACTION" in
       echo "CourseSnag is already in Local Standby mode. No Discord alert was sent."
       exit 0
     fi
-    announce_season_status "announce-season-offline"
+    aws ssm put-parameter \
+      --name "$MODE_PARAMETER" \
+      --type String \
+      --value stopping \
+      --overwrite \
+      --region "$AWS_REGION" \
+      --profile "$AWS_PROFILE" >/dev/null
     aws events disable-rule \
       --name "$RULE_NAME" \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE"
+    announce_season_status "announce-season-offline"
     aws ssm put-parameter \
       --name "$MODE_PARAMETER" \
       --type String \

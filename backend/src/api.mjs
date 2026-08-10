@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { config, requireConfig } from './config.mjs';
 import {
   cancelDiscordAuthorization,
@@ -7,8 +5,9 @@ import {
   createDiscordAuthorization
 } from './discord-oauth.mjs';
 import { normalizeTrackerInput, publicTracker } from './domain.mjs';
+import { sendDirectMessage } from './discord.mjs';
 import { json, parseJsonBody, redirect, route } from './http.mjs';
-import { sendAlertMessages } from './queue.mjs';
+import { currentMode } from './mode.mjs';
 import {
   authenticateSession,
   createLoginCode,
@@ -22,14 +21,6 @@ import {
   putTracker,
   upsertDiscordProfile
 } from './storage.mjs';
-
-const ssm = new SSMClient({});
-
-async function currentMode() {
-  requireConfig('modeParameterName');
-  const result = await ssm.send(new GetParameterCommand({ Name: config.modeParameterName }));
-  return result.Parameter?.Value || 'local';
-}
 
 function publicProfile(profile) {
   if (!profile) return null;
@@ -76,19 +67,20 @@ async function discordCallback(event) {
       query.state,
       discordRedirectUri(event)
     );
-    const profile = await upsertDiscordProfile(completed.discord);
     try {
-      await sendAlertMessages([{
-        eventId: randomUUID(),
+      await sendDirectMessage({
         type: 'connection-confirmed',
-        discordUserId: profile.discordUserId,
+        discordUserId: completed.discord.userId,
         detectedAt: new Date().toISOString()
-      }]);
+      });
     } catch (error) {
-      console.error('Discord connection confirmation could not be queued', {
+      console.error('Discord delivery verification failed', {
+        discordUserId: completed.discord.userId,
         message: error.message
       });
+      return redirect(frontendReturn('delivery-unavailable'));
     }
+    const profile = await upsertDiscordProfile(completed.discord);
     const loginCode = await createLoginCode(profile.discordUserId);
     return redirect(frontendReturn('connected', { code: loginCode }));
   } catch (error) {

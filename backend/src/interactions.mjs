@@ -1,5 +1,6 @@
 import { createPublicKey, verify } from 'node:crypto';
 import { config, requireConfig } from './config.mjs';
+import { currentMode } from './mode.mjs';
 import { acquireCommandRateLimit, getProfile, listTrackers } from './storage.mjs';
 
 const EPHEMERAL_MESSAGE_FLAG = 1 << 6;
@@ -79,8 +80,11 @@ function statusLabel(status) {
   return 'AWAITING CHECK';
 }
 
-export function trackedCoursesContent(trackers) {
-  if (!trackers.length) return '**Tracked courses (0)**\nYour cloud watchlist is empty.';
+export function trackedCoursesContent(trackers, { monitoringActive = true } = {}) {
+  const modeNotice = monitoringActive
+    ? ''
+    : '⚠️ **Cloud monitoring is currently paused.** Saved courses are not being checked and course-status alerts will not be sent.\n\n';
+  if (!trackers.length) return `${modeNotice}**Tracked courses (0)**\nYour cloud watchlist is empty.`;
 
   const ordered = [...trackers].sort((left, right) => [
     left.roster,
@@ -115,7 +119,7 @@ export function trackedCoursesContent(trackers) {
   if (included < ordered.length) {
     lines.push(`_Showing ${included} of ${ordered.length} tracked courses._`);
   }
-  return lines.join('\n');
+  return `${modeNotice}${lines.join('\n')}`;
 }
 
 export function unlinkedAccountPrompt() {
@@ -191,7 +195,13 @@ export async function handler(event) {
       return ephemeral(prompt.content, prompt.components);
     }
 
-    return ephemeral(trackedCoursesContent(await listTrackers(userId)));
+    const [trackers, mode] = await Promise.all([
+      listTrackers(userId),
+      currentMode()
+    ]);
+    return ephemeral(trackedCoursesContent(trackers, {
+      monitoringActive: mode === 'cloud'
+    }));
   } catch (error) {
     console.error('Discord interaction failed', {
       command: interaction.data?.name,

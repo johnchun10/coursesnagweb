@@ -62,6 +62,13 @@ test('formats a private tracked-course summary', () => {
   assert.match(trackedCoursesContent([]), /cloud watchlist is empty/);
 });
 
+test('warns that saved courses are not monitored during Local Standby', () => {
+  const content = trackedCoursesContent([], { monitoringActive: false });
+  assert.match(content, /monitoring is currently paused/);
+  assert.match(content, /alerts will not be sent/);
+  assert.match(content, /Tracked courses \(0\)/);
+});
+
 test('directs an unlinked Discord user to CourseSnag setup', () => {
   const prompt = unlinkedAccountPrompt();
   assert.match(prompt.content, /not linked/);

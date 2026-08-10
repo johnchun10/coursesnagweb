@@ -1,6 +1,7 @@
 import { buildStatusIndex, fetchSubjectClasses, wait } from './cornell.mjs';
 import { randomUUID } from 'node:crypto';
 import { availabilityEventForTransition, groupTrackersByRosterSubject } from './domain.mjs';
+import { currentMode } from './mode.mjs';
 import { sendAlertMessages } from './queue.mjs';
 import {
   getProfiles,
@@ -19,10 +20,30 @@ async function completeMonitorRun(summary) {
   return summary;
 }
 
+export function monitorStatusForFailures(failedGroups) {
+  return Number(failedGroups || 0) > 0 ? 'degraded' : 'ok';
+}
+
 export async function handler() {
+  if (await currentMode() !== 'cloud') {
+    return completeMonitorRun({
+      status: 'paused',
+      checked: 0,
+      alertsQueued: 0,
+      groups: 0,
+      failedGroups: 0
+    });
+  }
+
   const trackers = await listAllActiveTrackers();
   if (!trackers.length) {
-    return completeMonitorRun({ checked: 0, alertsQueued: 0, groups: 0 });
+    return completeMonitorRun({
+      status: 'ok',
+      checked: 0,
+      alertsQueued: 0,
+      groups: 0,
+      failedGroups: 0
+    });
   }
 
   const groups = groupTrackersByRosterSubject(trackers);
@@ -30,6 +51,7 @@ export async function handler() {
   const observations = [];
   let checked = 0;
   let groupIndex = 0;
+  let failedGroups = 0;
 
   for (const group of groups.values()) {
     if (groupIndex > 0) await wait(1_000);
@@ -52,12 +74,23 @@ export async function handler() {
         checked += 1;
       }
     } catch (error) {
+      failedGroups += 1;
       console.error('Cornell group check failed', {
         roster: group.roster,
         subject: group.subject,
         message: error.message
       });
     }
+  }
+
+  if (await currentMode() !== 'cloud') {
+    return completeMonitorRun({
+      status: 'paused',
+      checked,
+      alertsQueued: 0,
+      groups: groups.size,
+      failedGroups
+    });
   }
 
   const profiles = await getProfiles(changed.map(item => item.userId));
@@ -92,6 +125,12 @@ export async function handler() {
       observation.checkedAt
     );
   }
-  const summary = { checked, alertsQueued, groups: groups.size };
+  const summary = {
+    status: monitorStatusForFailures(failedGroups),
+    checked,
+    alertsQueued,
+    groups: groups.size,
+    failedGroups
+  };
   return completeMonitorRun(summary);
 }

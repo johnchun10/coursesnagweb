@@ -55,7 +55,7 @@ Discord messages are generated when:
 - Cloud Active is manually placed into Local Standby for the off-season; or
 - Local Standby is manually returned to Cloud Active.
 
-Adding and removing trackers does not send Discord messages. The private `/tracked` command lists the caller's current cloud watchlist. If the Discord identity is not linked, it returns a **Set up CourseSnag** link that opens the website's alert-mode onboarding. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read. Seasonal operations deduplicate legacy profile rows by Discord user ID and prefer the canonical Discord-owned profile.
+Adding and removing trackers does not send Discord messages. The private `/tracked` command lists the caller's current cloud watchlist. If the Discord identity is not linked, it returns a **Set up CourseSnag** link that opens the website's alert-mode onboarding. During Local Standby, the response explicitly warns that saved courses are not being checked and course-status alerts will not be sent. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read. Seasonal operations deduplicate legacy profile rows by Discord user ID and prefer the canonical Discord-owned profile.
 
 ## DynamoDB layout
 
@@ -90,6 +90,10 @@ Local Standby does not delete AWS resources or account data. It disables schedul
 The seasonal command sends one OFFLINE DM when it changes from Cloud Active to Local Standby and one ONLINE DM when it changes back. Repeating `start` or `stop` while already in that mode does not send another status DM. Every real transition and recipient receives a unique queue identity, so rapid OFFLINE → ONLINE → OFFLINE testing is not suppressed by the FIFO queue's deduplication window.
 
 CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. This keeps the backend serverless, but Discord therefore shows the bot itself as offline even during Cloud Active. The latest seasonal DM is the durable user-facing status indicator.
+
+Discord OAuth is accepted only after CourseSnag successfully sends the connection-confirmation DM. A failure tells the user to join the shared CourseSnag server and allow direct messages before retrying, instead of creating an account that cannot receive alerts.
+
+Course notifications are re-checked against the live mode by the notifier. Transitional `starting` and `stopping` states keep the scheduled monitor gated while ONLINE/OFFLINE messages are ordered. Cornell roster/subject failures are counted in the persisted monitor result and shown as degraded status. A CloudWatch alarm emails the owner when any message enters the dead-letter queue.
 
 If a browser was previously set to Cloud and AWS reports Local Standby or cannot be reached, the website automatically changes that browser to Local mode. The Cloud choice remains unavailable until Cloud Active returns.
 

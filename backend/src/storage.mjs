@@ -302,10 +302,11 @@ export async function putMonitorRunStatus(summary) {
       PK: 'SYSTEM#MONITOR',
       SK: 'LAST_RUN',
       entityType: 'monitorStatus',
-      status: 'ok',
+      status: summary.status || 'ok',
       checked: Number(summary.checked || 0),
       alertsQueued: Number(summary.alertsQueued || 0),
       groups: Number(summary.groups || 0),
+      failedGroups: Number(summary.failedGroups || 0),
       completedAt: summary.completedAt
     }
   }));

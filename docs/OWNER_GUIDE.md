@@ -79,7 +79,13 @@ Run them from the project directory on the Mac where the AWS CLI profile is conf
 
 `status` is the owner dashboard. It reports the active AWS account and region, seasonal mode, API health, Discord-account and tracker counts, the last monitor result, alert queue and dead-letter counts, invocation/error totals for the last 24 hours, and annual budget usage. It is read-only and does not send Discord messages or change monitoring mode. AWS billing totals can lag by about 24 hours.
 
+Inspect quarantined alerts without changing them with `./scripts/dead-letters.sh inspect`. Permanently clear the dead-letter queue with `./scripts/dead-letters.sh purge`; the command requires typing `PURGE` and does not replay messages.
+
 The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence therefore appears offline in both seasonal modes. The most recent ONLINE or OFFLINE DM communicates the actual CourseSnag monitoring state without adding a continuously running AWS service.
+
+Free-form messages sent to the bot are not received by CourseSnag. Use `/tracked` for an on-demand response. The OFFLINE message is a one-time transition DM sent by `season.sh stop`; Discord stores it in the conversation, but does not automatically resend it when a user writes another message.
+
+After deploying the operations alarm for the first time, confirm the separate AWS SNS subscription email. Budget-alert confirmation does not also confirm operational alerts. The dead-letter alarm costs approximately USD 0.10 per month at standard CloudWatch alarm pricing.
 
 ## Operational checks
 
