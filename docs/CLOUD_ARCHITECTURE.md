@@ -86,6 +86,8 @@ The `GSI1` index lets one monitor invocation load every active tracker. Trackers
 
 Local Standby does not delete AWS resources or account data. It disables scheduled monitoring while leaving the small on-demand API available for mode checks and future sign-in.
 
+If a browser was previously set to Cloud and AWS reports Local Standby or cannot be reached, the website automatically changes that browser to Local mode. The Cloud choice remains unavailable until Cloud Active returns.
+
 ## Security and cost boundaries
 
 - Discord's application ID and the API URL are public identifiers.

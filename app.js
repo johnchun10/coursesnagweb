@@ -1396,6 +1396,18 @@
     return window.CourseSnagCloud?.getState?.().mode === 'cloud';
   }
 
+  function fallBackToLocalWhenCloudIsUnavailable(cloudState) {
+    const unavailable = cloudState
+      && cloudState.mode !== 'checking'
+      && cloudState.mode !== 'cloud';
+    if (state.alertMode !== 'cloud' || !unavailable) return false;
+
+    state.alertMode = 'local';
+    state.pendingAlertMode = 'local';
+    saveToStorage('alertMode', 'local');
+    return true;
+  }
+
   function updateCloudModeChoice() {
     const cloudState = window.CourseSnagCloud?.getState();
     const checking = !cloudState || cloudState.mode === 'checking';
@@ -1413,6 +1425,8 @@
   }
 
   function renderAlertMode() {
+    const cloudState = window.CourseSnagCloud?.getState();
+    const switchedToLocal = fallBackToLocalWhenCloudIsUnavailable(cloudState);
     updateCloudModeChoice();
     for (const label of els.modeCurrentLabels) {
       label.hidden = label.dataset.currentMode !== state.alertMode;
@@ -1424,7 +1438,6 @@
     els.chooseLocalMode.setAttribute('aria-pressed', state.pendingAlertMode === 'local' ? 'true' : 'false');
     els.chooseCloudMode.setAttribute('aria-pressed', state.pendingAlertMode === 'cloud' ? 'true' : 'false');
 
-    const cloudState = window.CourseSnagCloud?.getState();
     const cloudUnavailable = cloudState && cloudState.mode !== 'checking' && cloudState.mode !== 'cloud';
     const footerMode = state.alertMode === 'cloud' && cloudUnavailable
       ? 'unavailable'
@@ -1437,6 +1450,10 @@
     els.settingsButton.textContent = 'Settings';
     els.settingsButton.dataset.mode = footerMode;
     els.settingsButton.setAttribute('aria-label', `Settings, ${footerModeLabel}`);
+
+    if (switchedToLocal && state.settingsView === 'cloud') {
+      showSettingsView('local');
+    }
 
     updateSettingsActions();
     updateTabOpenNotice();

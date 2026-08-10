@@ -28,6 +28,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Cloud-authoritative sign-in that replaces the browser watchlist instead of merging or uploading local trackers.
 - [x] First-run Local/Cloud chooser and fixed-size mode settings.
 - [x] Cloud availability gating and Local fallback.
+- [x] Automatic switch from a saved Cloud selection to Local whenever Cloud is unavailable.
 - [x] Automatic synchronization on load, refresh, add, and removal.
 - [x] Discord callback and encrypted bot/client credentials.
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
