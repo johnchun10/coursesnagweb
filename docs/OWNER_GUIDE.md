@@ -77,6 +77,8 @@ Use these commands instead of turning individual AWS resources on and off in the
 
 Run them from the project directory on the Mac where the AWS CLI profile is configured. Local Standby keeps the small serverless API available so the website can select Local automatically and keep the Cloud choice unavailable; there is no continuously running server to stop. Do not manually delete or disable individual AWS resources.
 
+`status` is the owner dashboard. It reports the active AWS account and region, seasonal mode, API health, Discord-account and tracker counts, the last monitor result, alert queue and dead-letter counts, invocation/error totals for the last 24 hours, and annual budget usage. It is read-only and does not send Discord messages or change monitoring mode. AWS billing totals can lag by about 24 hours.
+
 The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence therefore appears offline in both seasonal modes. The most recent ONLINE or OFFLINE DM communicates the actual CourseSnag monitoring state without adding a continuously running AWS service.
 
 ## Operational checks

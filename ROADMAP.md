@@ -31,6 +31,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Automatic switch from a saved Cloud selection to Local whenever Cloud is unavailable.
 - [x] Automatic synchronization on load, refresh, add, and removal.
 - [x] Unique seasonal alert identities so rapid OFFLINE/ONLINE rehearsals are not deduplicated by SQS.
+- [x] Detailed owner status command with health, usage, queue, monitor, error, and budget summaries.
 - [x] Discord callback and encrypted bot/client credentials.
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
 - [x] Discord-only account design using revocable, hashed 30-day CourseSnag sessions.
@@ -55,7 +56,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Receive and verify first availability-status DMs on tester account `jochu`.
 - [x] Remove tracker-added and tracker-removed Discord messages from the product behavior.
 - [x] Verify `/tracked` against the production watchlist and cooldown.
-- [ ] Verify notifier retries and dead-letter behavior.
+- [x] Verify notifier retries and dead-letter behavior; seven stale pre-fix test messages remain quarantined.
 - [ ] Verify seasonal OFFLINE and ONLINE announcements during a full mode rehearsal.
 
 ## Later work
@@ -64,7 +65,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [ ] Add export/import backup for local watchlists.
 - [ ] Add `/privacy` and `/terms` pages and configure their Discord URLs.
 - [ ] Review policies before public use.
-- [ ] Expand `season.sh status` with API health, last monitor result, queue depth, tracker count, errors, and cost information.
+- [ ] Delete the seven stale pre-fix dead-letter messages after owner approval; do not replay them.
 - [ ] Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
 
 ## Owner commands

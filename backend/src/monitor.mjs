@@ -5,13 +5,24 @@ import { sendAlertMessages } from './queue.mjs';
 import {
   getProfiles,
   listAllActiveTrackers,
+  putMonitorRunStatus,
   updateTrackerStatus
 } from './storage.mjs';
+
+async function completeMonitorRun(summary) {
+  const result = {
+    ...summary,
+    completedAt: new Date().toISOString()
+  };
+  await putMonitorRunStatus(result);
+  console.log('Monitor run complete', result);
+  return summary;
+}
 
 export async function handler() {
   const trackers = await listAllActiveTrackers();
   if (!trackers.length) {
-    return { checked: 0, alertsQueued: 0, groups: 0 };
+    return completeMonitorRun({ checked: 0, alertsQueued: 0, groups: 0 });
   }
 
   const groups = groupTrackersByRosterSubject(trackers);
@@ -82,6 +93,5 @@ export async function handler() {
     );
   }
   const summary = { checked, alertsQueued, groups: groups.size };
-  console.log('Monitor run complete', summary);
-  return summary;
+  return completeMonitorRun(summary);
 }

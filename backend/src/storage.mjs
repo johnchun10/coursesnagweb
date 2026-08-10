@@ -294,6 +294,23 @@ export async function listAllActiveTrackers() {
   return items;
 }
 
+export async function putMonitorRunStatus(summary) {
+  requireConfig('tableName');
+  await documentClient.send(new PutCommand({
+    TableName: config.tableName,
+    Item: {
+      PK: 'SYSTEM#MONITOR',
+      SK: 'LAST_RUN',
+      entityType: 'monitorStatus',
+      status: 'ok',
+      checked: Number(summary.checked || 0),
+      alertsQueued: Number(summary.alertsQueued || 0),
+      groups: Number(summary.groups || 0),
+      completedAt: summary.completedAt
+    }
+  }));
+}
+
 export async function updateTrackerStatus(tracker, newStatus, checkedAt) {
   requireConfig('tableName');
   await documentClient.send(new UpdateCommand({
