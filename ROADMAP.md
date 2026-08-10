@@ -49,7 +49,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Complete one real Discord sign-in and verify the connected `jochu` account in production.
 - [x] Deploy a confirmation DM after every successful Discord connection.
 - [x] Verify the confirmation DM after the bot and tester share a server.
-- [ ] Add a test course and verify cloud persistence.
+- [x] Add a test course and verify cloud persistence in the production browser and `/tracked`.
 - [x] Receive and verify first availability-status DMs on tester account `jochu`.
 - [x] Remove tracker-added and tracker-removed Discord messages from the product behavior.
 - [x] Verify `/tracked` against the production watchlist and cooldown.
