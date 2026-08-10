@@ -81,8 +81,7 @@ export function buildDiscordAuthorizationUrl(state, redirectUri) {
     client_id: config.discordApplicationId,
     response_type: 'code',
     redirect_uri: redirectUri,
-    scope: 'identify applications.commands',
-    integration_type: '1',
+    scope: 'identify',
     state,
     prompt: 'consent'
   });

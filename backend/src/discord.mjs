@@ -63,6 +63,12 @@ export function notificationContent(message) {
     };
   }
 
+  if (message.type === 'connection-confirmed') {
+    return {
+      content: '✅ **CourseSnag is connected.**\nYour Discord account is ready for cloud watchlist sync and course alerts.\n\nOpen CourseSnag: https://coursesnag.pages.dev'
+    };
+  }
+
   const tracker = message.tracker || {};
   const course = courseName(tracker);
   const details = trackerDetails(tracker);

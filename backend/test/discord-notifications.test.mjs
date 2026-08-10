@@ -17,3 +17,9 @@ test('formats tracker lifecycle messages', () => {
   assert.match(notificationContent({ type: 'course-not-open', status: 'C', tracker }).content, /CS 2110 is not open/);
   assert.match(notificationContent({ type: 'course-not-open', status: 'W', tracker }).content, /CS 2110 is waitlisted/);
 });
+
+test('formats a Discord connection confirmation', () => {
+  const message = notificationContent({ type: 'connection-confirmed' }).content;
+  assert.match(message, /CourseSnag is connected/);
+  assert.match(message, /cloud watchlist sync and course alerts/);
+});

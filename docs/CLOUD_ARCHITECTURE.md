@@ -16,7 +16,7 @@ Cloudflare hosts the frontend at `https://coursesnag.pages.dev`. AWS hosts only 
 Discord is the only CourseSnag account provider and alert destination.
 
 1. The browser requests a ten-minute, single-use OAuth state from AWS.
-2. Discord asks the user to identify themselves and install CourseSnag to their user account.
+2. Discord asks the user to identify themselves.
 3. Discord returns a one-time code to the AWS callback.
 4. AWS exchanges the code server-side, reads the stable Discord user ID and display profile, then immediately revokes the temporary Discord access token.
 5. AWS redirects the browser with a two-minute, single-use CourseSnag login code.
@@ -42,8 +42,11 @@ Monitor Lambda -> Cornell roster API -> DynamoDB status update
                                   \-> FIFO alert queue on status changes
 ```
 
+Discord's proactive bot DMs require the bot and recipient to share a guild. CourseSnag therefore needs a dedicated Discord server containing the bot and each cloud-alert user. User Install alone does not satisfy this requirement.
+
 Discord messages are generated when:
 
+- a Discord connection succeeds;
 - a tracker is first added to the cloud watchlist;
 - a tracker is removed;
 - a section changes to open; or

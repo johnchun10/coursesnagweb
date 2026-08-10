@@ -41,10 +41,13 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 
 - [x] Discord callback registered in the Developer Portal.
 - [x] Bot token and client secret stored as SSM `SecureString` values.
-- [x] Discord User Install enabled with `applications.commands`.
+- [x] Identify why User Install did not deliver proactive DMs: Discord requires a mutual guild.
+- [ ] Add the CourseSnag bot and cloud-alert users to a shared Discord server.
 - [x] Discord-only backend deployed to AWS.
 - [x] Publish the matching Discord-only frontend through Cloudflare Pages and verify the production UI.
-- [ ] Complete one real Discord sign-in and verify the same account returns after refresh.
+- [x] Complete one real Discord sign-in and verify the connected `jochu` account in production.
+- [x] Deploy a confirmation DM after every successful Discord connection.
+- [ ] Verify the confirmation DM after the bot and tester share a server.
 - [ ] Add a test course and verify cloud persistence.
 - [ ] Receive “tracking added” and first availability-status DMs on tester account `jochu`.
 - [ ] Remove the course and receive “tracking stopped.”

@@ -77,6 +77,18 @@ async function discordCallback(event) {
       discordRedirectUri(event)
     );
     const profile = await upsertDiscordProfile(completed.discord);
+    try {
+      await sendAlertMessages([{
+        eventId: randomUUID(),
+        type: 'connection-confirmed',
+        discordUserId: profile.discordUserId,
+        detectedAt: new Date().toISOString()
+      }]);
+    } catch (error) {
+      console.error('Discord connection confirmation could not be queued', {
+        message: error.message
+      });
+    }
     const loginCode = await createLoginCode(profile.discordUserId);
     return redirect(frontendReturn('connected', { code: loginCode }));
   } catch (error) {

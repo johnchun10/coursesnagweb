@@ -92,8 +92,8 @@
     if (connected) {
       state.els.discordProfileName.textContent = discord?.displayName || 'Discord connected';
       state.els.discordProfileDetail.textContent = discord?.username
-        ? `@${discord.username} · Watchlist sync and direct messages enabled`
-        : 'Watchlist sync and direct messages enabled';
+        ? `@${discord.username} · Watchlist sync enabled · Check Discord for confirmation`
+        : 'Watchlist sync enabled · Check Discord for confirmation';
     } else if (hasSession) {
       state.els.discordProfileName.textContent = 'Checking account';
       state.els.discordProfileDetail.textContent = 'Restoring your Discord session';

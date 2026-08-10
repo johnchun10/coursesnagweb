@@ -12,7 +12,9 @@ Last updated: 2026-08-07
 - Discord callback: `https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev/discord/callback`
 - Annual AWS budget: USD 50 with 20%, 50%, 80%, and 100% alerts
 
-The Discord application supports User Install. Its default user scope is `applications.commands`; CourseSnag's sign-in additionally requests `identify`. The website uses the resulting Discord ID for both cloud ownership and direct-message delivery. Google is not part of the account flow.
+CourseSnag sign-in requests only Discord's `identify` scope. The website uses the resulting Discord ID for cloud ownership and direct-message delivery. Google is not part of the account flow.
+
+Discord requires a proactive bot-DM recipient and bot to share a server. Add the CourseSnag bot to a dedicated server and ensure every cloud-alert user joins it. For a future public flow, CourseSnag can request `guilds.join` and add consenting users automatically during OAuth.
 
 ## Secret storage
 
@@ -43,12 +45,13 @@ Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub pu
 ## Testing cloud tracking
 
 1. Run `./scripts/season.sh start`.
-2. Open `https://coursesnag.pages.dev` and select Cloud.
-3. Select **Continue with Discord** and approve the CourseSnag user install/sign-in.
-4. Confirm Settings displays the Discord account.
-5. Add a section and confirm it remains after a page refresh.
-6. Confirm Discord sends “tracking added,” followed by the first observed open/not-open status.
-7. Remove the section and confirm Discord sends “tracking stopped.”
+2. Confirm the CourseSnag bot and tester share a Discord server.
+3. Open `https://coursesnag.pages.dev` and select Cloud.
+4. Select **Continue with Discord** and approve the CourseSnag sign-in.
+5. Confirm Settings displays the Discord account and Discord receives the connection confirmation.
+6. Add a section and confirm it remains after a page refresh.
+7. Confirm Discord sends “tracking added,” followed by the first observed open/not-open status.
+8. Remove the section and confirm Discord sends “tracking stopped.”
 
 The browser copy and cloud copy are synchronized. Signing out leaves the local browser watchlist intact. Signing in on another device with the same Discord account downloads the cloud watchlist.
 
