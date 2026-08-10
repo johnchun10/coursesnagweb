@@ -55,6 +55,8 @@ test('formats a private tracked-course summary', () => {
   assert.match(content, /Tracked courses \(1\)/);
   assert.match(content, /CS 2110/);
   assert.match(content, /OPEN/);
+  assert.doesNotMatch(content, /Class #/);
+  assert.doesNotMatch(content, /12345/);
   assert.doesNotMatch(content, /coursesnag\.pages\.dev/);
   assert.match(trackedCoursesContent([]), /cloud watchlist is empty/);
 });

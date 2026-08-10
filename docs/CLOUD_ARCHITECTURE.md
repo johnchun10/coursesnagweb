@@ -87,7 +87,7 @@ The `GSI1` index lets one monitor invocation load every active tracker. Trackers
 
 Local Standby does not delete AWS resources or account data. It disables scheduled monitoring while leaving the small on-demand API available for mode checks and future sign-in.
 
-The seasonal command sends one OFFLINE DM when it changes from Cloud Active to Local Standby and one ONLINE DM when it changes back. Repeating `start` or `stop` while already in that mode does not send another status DM.
+The seasonal command sends one OFFLINE DM when it changes from Cloud Active to Local Standby and one ONLINE DM when it changes back. Repeating `start` or `stop` while already in that mode does not send another status DM. Every real transition and recipient receives a unique queue identity, so rapid OFFLINE → ONLINE → OFFLINE testing is not suppressed by the FIFO queue's deduplication window.
 
 CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. This keeps the backend serverless, but Discord therefore shows the bot itself as offline even during Cloud Active. The latest seasonal DM is the durable user-facing status indicator.
 

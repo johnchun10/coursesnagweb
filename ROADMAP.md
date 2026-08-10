@@ -30,6 +30,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Cloud availability gating and Local fallback.
 - [x] Automatic switch from a saved Cloud selection to Local whenever Cloud is unavailable.
 - [x] Automatic synchronization on load, refresh, add, and removal.
+- [x] Unique seasonal alert identities so rapid OFFLINE/ONLINE rehearsals are not deduplicated by SQS.
 - [x] Discord callback and encrypted bot/client credentials.
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
 - [x] Discord-only account design using revocable, hashed 30-day CourseSnag sessions.

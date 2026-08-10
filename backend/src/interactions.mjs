@@ -102,7 +102,6 @@ export function trackedCoursesContent(trackers) {
     const course = safeText(`${tracker.subject || ''} ${tracker.catalogNbr || ''}`.trim() || 'Course');
     const details = [
       tracker.section ? `Section ${safeText(tracker.section, 40)}` : '',
-      tracker.classNbr ? `Class #${safeText(tracker.classNbr, 20)}` : '',
       safeText(tracker.roster, 40),
       statusLabel(tracker.lastStatus)
     ].filter(Boolean).join(' · ');
