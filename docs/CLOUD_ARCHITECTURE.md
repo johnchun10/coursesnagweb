@@ -1,13 +1,13 @@
 # CourseSnag cloud architecture
 
-Last updated: 2026-08-07
+Last updated: 2026-08-10
 
 ## Product model
 
 CourseSnag has two manually selected operating modes:
 
 - **Local Standby:** Cloudflare Pages serves the browser tracker year-round. Tracking and browser alerts require the tab and computer to remain on.
-- **Cloud Active:** the same browser watchlist is synchronized to AWS. A shared AWS monitor checks Cornell once per roster-and-subject group every minute and Discord sends direct-message alerts while the computer is off.
+- **Cloud Active:** AWS owns the account watchlist. A shared AWS monitor checks Cornell once per roster-and-subject group every minute and Discord sends direct-message alerts while the computer is off.
 
 Cloudflare hosts the frontend at `https://coursesnag.pages.dev`. AWS hosts only the API, account/watchlist records, monitor, queue, and notification workers.
 
@@ -23,7 +23,7 @@ Discord is the only CourseSnag account provider and alert destination.
 6. The browser exchanges that code for a random 30-day CourseSnag session token.
 7. DynamoDB stores only the session token's SHA-256 hash. The browser uses the opaque token as a bearer credential for watchlist requests.
 
-Signing out revokes the server-side session but does not erase the browser-local watchlist. Returning with the same Discord account restores the same cloud watchlist because the Discord user ID is the account key.
+Signing out revokes the server-side session but does not erase the browser-local watchlist. Connecting a Discord account replaces the browser list with that account's AWS watchlist, including replacing it with an empty list. Local-only trackers are never uploaded as part of sign-in.
 
 ## Request and notification flow
 
@@ -34,6 +34,9 @@ Cloudflare Pages browser
         v
 API Gateway -> API Lambda -> DynamoDB
                          \-> FIFO alert queue -> Notifier Lambda -> Discord DM
+
+Discord /tracked -> API Gateway -> Interactions Lambda -> DynamoDB
+                      (signed request, private response, per-user cooldown)
 
 EventBridge (once per minute, Cloud Active only)
         |
@@ -47,12 +50,11 @@ Discord's proactive bot DMs require the bot and recipient to share a guild. Cour
 Discord messages are generated when:
 
 - a Discord connection succeeds;
-- a tracker is first added to the cloud watchlist;
-- a tracker is removed;
 - a section changes to open; or
-- a section changes to closed/waitlisted, including the first observed status after adding it.
+- a section changes to closed/waitlisted, including the first observed status after adding it; or
+- Cloud Active is manually placed into Local Standby for the off-season.
 
-Repeated page refreshes update existing tracker records and do not repeat the “tracking added” message.
+Adding and removing trackers does not send Discord messages. The private `/tracked` command lists the caller's current cloud watchlist. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read.
 
 ## DynamoDB layout
 
@@ -70,6 +72,8 @@ GSI1SK = <roster>#<subject>#<class number>#<Discord user ID>
 
 Short-lived OAuth states, login codes, and sessions use separate key prefixes and DynamoDB TTL through `expiresAt`.
 
+The `/tracked` cooldown uses a short-lived `RATELIMIT#<Discord user ID>` record with DynamoDB TTL.
+
 The `GSI1` index lets one monitor invocation load every active tracker. Trackers are grouped by roster and subject so CourseSnag does not poll Cornell separately for every account.
 
 ## Seasonal control
@@ -86,9 +90,10 @@ Local Standby does not delete AWS resources or account data. It disables schedul
 
 - Discord's application ID and the API URL are public identifiers.
 - The Discord client secret and bot token are encrypted SSM `SecureString` parameters and are never sent to the browser.
+- Discord's public interaction verification key is safe to store in the deployment configuration.
 - OAuth states and login codes are random, single use, and short lived.
 - CourseSnag session tokens are random, revocable, expire after 30 days, and are stored only as hashes in AWS.
-- The API is throttled and private routes authenticate sessions in Lambda.
+- The API is throttled, private website routes authenticate sessions in Lambda, and Discord commands require Ed25519 signatures plus per-user cooldowns.
 - The notifier does not need a continuously connected Discord Gateway process; it uses Discord's HTTP API only when a message is queued.
 - DynamoDB and Lambda are on demand, logs expire after seven days, and deployment artifacts expire after 30 days.
 - The annual AWS budget is USD 50. Budget alerts warn; they are not a hard cutoff.

@@ -19,6 +19,7 @@ set +a
 : "${STAGE_NAME:=dev}"
 : "${ALLOWED_ORIGIN:=https://coursesnag.pages.dev}"
 : "${DISCORD_APPLICATION_ID:?DISCORD_APPLICATION_ID is required}"
+: "${DISCORD_PUBLIC_KEY:?DISCORD_PUBLIC_KEY is required}"
 : "${BUDGET_ALERT_EMAIL:?Add BUDGET_ALERT_EMAIL to infra/parameters.local.env before deployment}"
 
 ACCOUNT_ID="$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)"
@@ -81,6 +82,7 @@ aws cloudformation deploy \
     StageName="$STAGE_NAME" \
     AllowedOrigin="$ALLOWED_ORIGIN" \
     DiscordApplicationId="$DISCORD_APPLICATION_ID" \
+    DiscordPublicKey="$DISCORD_PUBLIC_KEY" \
     BudgetAlertEmail="$BUDGET_ALERT_EMAIL" \
     AnnualBudgetAmount=50 \
   --tags Project=CourseSnag Environment="$STAGE_NAME" \
@@ -93,3 +95,5 @@ aws cloudformation describe-stacks \
   --output table \
   --region "$AWS_REGION" \
   --profile "$AWS_PROFILE"
+
+"$PROJECT_ROOT/scripts/configure-discord.sh"

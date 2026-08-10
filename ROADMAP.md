@@ -1,6 +1,6 @@
 # CourseSnag cloud roadmap
 
-Last updated: 2026-08-07
+Last updated: 2026-08-10
 
 This is the durable project checkpoint. Read it with `docs/CLOUD_ARCHITECTURE.md` and `docs/OWNER_GUIDE.md` when resuming in a new session.
 
@@ -25,7 +25,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] AWS SSO CLI profile using a non-root role.
 - [x] Serverless API, monitor, notifier, owner-operations Lambda, DynamoDB, SQS/DLQ, EventBridge, SSM mode flag, logs, artifact bucket, and budget.
 - [x] `start`, `stop`, and `status` seasonal controls.
-- [x] Browser-local/cloud merge and deletion tombstones.
+- [x] Cloud-authoritative sign-in that replaces the browser watchlist instead of merging or uploading local trackers.
 - [x] First-run Local/Cloud chooser and fixed-size mode settings.
 - [x] Cloud availability gating and Local fallback.
 - [x] Automatic synchronization on load, refresh, add, and removal.
@@ -33,8 +33,9 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
 - [x] Discord-only account design using revocable, hashed 30-day CourseSnag sessions.
 - [x] Tracker database write fixed by escaping DynamoDB's reserved `section` attribute.
-- [x] Discord messages implemented for tracker added, tracker removed, open, closed/waitlisted, and seasonal shutdown.
+- [x] Discord messages implemented for connection confirmation, open, closed/waitlisted, and seasonal shutdown; add/remove messages intentionally suppressed.
 - [x] API throttling enabled.
+- [x] Private `/tracked` Discord command with signature verification and a ten-second per-user cooldown.
 - [x] Backend tests and CloudFormation validation passing.
 
 ## Current phase: live Discord verification
@@ -49,8 +50,9 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Deploy a confirmation DM after every successful Discord connection.
 - [x] Verify the confirmation DM after the bot and tester share a server.
 - [ ] Add a test course and verify cloud persistence.
-- [x] Receive “tracking added,” “tracking stopped,” and first availability-status DMs on tester account `jochu`.
-- [x] Remove the course and receive “tracking stopped.”
+- [x] Receive and verify first availability-status DMs on tester account `jochu`.
+- [x] Remove tracker-added and tracker-removed Discord messages from the product behavior.
+- [x] Verify `/tracked` against the production watchlist and cooldown.
 - [ ] Verify notifier retries and dead-letter behavior.
 - [ ] Verify seasonal shutdown announcement.
 

@@ -13,6 +13,9 @@ Parameters:
   DiscordApplicationId:
     Type: String
     MinLength: 10
+  DiscordPublicKey:
+    Type: String
+    AllowedPattern: '[A-Fa-f0-9]{64}'
   BudgetAlertEmail:
     Type: String
     Default: ''
@@ -38,6 +41,7 @@ Globals:
         DISCORD_BOT_TOKEN_PARAMETER: !Sub /coursesnag/${StageName}/discord/bot-token
         DISCORD_CLIENT_SECRET_PARAMETER: !Sub /coursesnag/${StageName}/discord/client-secret
         DISCORD_APPLICATION_ID: !Ref DiscordApplicationId
+        DISCORD_PUBLIC_KEY: !Ref DiscordPublicKey
         FRONTEND_ORIGIN: !Ref AllowedOrigin
         STAGE_NAME: !Ref StageName
         CORNELL_API_BASE: https://classes.cornell.edu/api/2.0
@@ -243,6 +247,27 @@ Resources:
         - SQSSendMessagePolicy:
             QueueName: !GetAtt AlertQueue.QueueName
 
+  InteractionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-interactions
+      CodeUri: ../backend/
+      Handler: src/interactions.handler
+      Timeout: 5
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CourseSnagTable
+      Events:
+        DiscordInteractions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /discord/interactions
+            Method: POST
+            RouteSettings:
+              ThrottlingBurstLimit: 3
+              ThrottlingRateLimit: 1
+
   MonitorRule:
     Type: AWS::Events::Rule
     Properties:
@@ -310,6 +335,13 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-monitor
+      RetentionInDays: 7
+
+  InteractionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-interactions
       RetentionInDays: 7
 
   NotifierLogGroup:
@@ -387,3 +419,5 @@ Outputs:
     Value: !Ref AlertQueue
   DiscordApplicationId:
     Value: !Ref DiscordApplicationId
+  DiscordInteractionsUrl:
+    Value: !Sub https://${CourseSnagApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/discord/interactions

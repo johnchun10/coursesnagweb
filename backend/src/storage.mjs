@@ -155,6 +155,32 @@ export async function deleteSession(tokenHash) {
   }));
 }
 
+export async function acquireCommandRateLimit(userId, commandName, cooldownSeconds) {
+  requireConfig('tableName');
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiresAt = nowSeconds + cooldownSeconds;
+  try {
+    await documentClient.send(new PutCommand({
+      TableName: config.tableName,
+      Item: {
+        PK: `RATELIMIT#${userId}`,
+        SK: `COMMAND#${commandName}`,
+        entityType: 'commandRateLimit',
+        userId,
+        commandName,
+        createdAt: new Date(nowSeconds * 1000).toISOString(),
+        expiresAt
+      },
+      ConditionExpression: 'attribute_not_exists(PK) OR expiresAt <= :now',
+      ExpressionAttributeValues: { ':now': nowSeconds }
+    }));
+    return true;
+  } catch (error) {
+    if (error?.name === 'ConditionalCheckFailedException') return false;
+    throw error;
+  }
+}
+
 export async function listTrackers(userId) {
   requireConfig('tableName');
   const result = await documentClient.send(new QueryCommand({

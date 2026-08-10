@@ -65,37 +65,28 @@ export function notificationContent(message) {
 
   if (message.type === 'connection-confirmed') {
     return {
-      content: '✅ **CourseSnag is connected.**\nYour Discord account is ready for cloud watchlist sync and course alerts.\n\nOpen CourseSnag: https://coursesnag.pages.dev'
+      content: '✅ **CourseSnag is connected.**\nYour Discord account is ready for cloud watchlist sync and course alerts.'
     };
   }
 
   const tracker = message.tracker || {};
   const course = courseName(tracker);
   const details = trackerDetails(tracker);
-  const footer = '\n\nOpen CourseSnag: https://coursesnag.pages.dev';
-
-  if (message.type === 'tracking-added') {
-    return {
-      content: `📌 **Now tracking ${course}**\n${details}\nI’ll message you when its availability changes.${footer}`
-    };
-  }
-
-  if (message.type === 'tracking-removed') {
-    return {
-      content: `🗑️ **Stopped tracking ${course}**\n${details}${footer}`
-    };
-  }
 
   if (message.type === 'course-not-open') {
     const status = message.status === 'W' ? 'waitlisted' : 'not open';
     return {
-      content: `🔒 **${course} is ${status}.**\n${details}${footer}`
+      content: `🔒 **${course} is ${status}.**\n${details}`
     };
   }
 
-  return {
-    content: `🎉 **${course} is open!**\n${details}${footer}`
-  };
+  if (message.type === 'course-opened') {
+    return {
+      content: `🎉 **${course} is open!**\n${details}`
+    };
+  }
+
+  throw new Error(`Unsupported Discord notification type: ${message.type || 'missing'}`);
 }
 
 export async function sendDirectMessage(message) {

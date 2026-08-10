@@ -974,9 +974,9 @@
     return `${tracker.roster}:${String(tracker.classNbr)}`;
   }
 
-  function mergeCloudTrackers(cloudTrackers) {
-    const localByKey = new Map(state.trackedSections.map(item => [trackerKey(item), item]));
-    let changed = false;
+  function replaceLocalTrackers(cloudTrackers) {
+    const replacement = [];
+    const replacementKeys = new Set();
 
     for (const cloudTracker of cloudTrackers) {
       if (!cloudTracker?.roster || !cloudTracker?.classNbr || !cloudTracker?.subject) continue;
@@ -994,37 +994,21 @@
         lastCheckedAt: cloudTracker.lastCheckedAt || null
       };
       const key = trackerKey(normalizedCloud);
-      const localTracker = localByKey.get(key);
-
-      if (!localTracker) {
-        state.trackedSections.push(normalizedCloud);
-        localByKey.set(key, normalizedCloud);
-        changed = true;
-        continue;
-      }
-
-      for (const field of ['catalogNbr', 'title', 'section', 'ssrComponent', 'classTime']) {
-        if (!localTracker[field] && normalizedCloud[field]) {
-          localTracker[field] = normalizedCloud[field];
-          changed = true;
-        }
-      }
-
-      const localCheckedAt = Date.parse(localTracker.lastCheckedAt || '') || 0;
-      const cloudCheckedAt = Date.parse(normalizedCloud.lastCheckedAt || '') || 0;
-      if (cloudCheckedAt > localCheckedAt) {
-        localTracker.lastStatus = normalizedCloud.lastStatus;
-        localTracker.lastCheckedAt = normalizedCloud.lastCheckedAt;
-        changed = true;
-      }
+      if (replacementKeys.has(key)) continue;
+      replacement.push(normalizedCloud);
+      replacementKeys.add(key);
     }
 
-    if (!changed) return;
-
-    state.trackedKeySet = new Set(state.trackedSections.map(trackerKey));
+    state.trackedSections = replacement;
+    state.trackedKeySet = replacementKeys;
+    for (const key of dismissedAlerts.keys()) {
+      if (!replacementKeys.has(key)) dismissedAlerts.delete(key);
+    }
+    saveDismissedAlerts();
     saveTrackedSections();
     renderTrackedList();
     renderSearchResults();
+    if (!hasActiveUndismissedOpenAlerts()) stopAlertSound();
   }
 
   function toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus, classTime = '') {
@@ -1616,9 +1600,8 @@
     if (!state.alertMode) {
       requestAnimationFrame(() => openSettings(true));
     }
-    void window.CourseSnagCloud?.initialize({
-      getLocalTrackers: () => state.trackedSections.map(item => ({ ...item })),
-      mergeCloudTrackers
+    await window.CourseSnagCloud?.initialize({
+      replaceLocalTrackers
     });
     await loadRosters();
 

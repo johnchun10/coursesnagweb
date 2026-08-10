@@ -97,16 +97,6 @@ async function discordCallback(event) {
   }
 }
 
-function trackerMessage(type, discordUserId, tracker) {
-  return {
-    eventId: randomUUID(),
-    type,
-    discordUserId,
-    tracker: publicTracker(tracker),
-    detectedAt: new Date().toISOString()
-  };
-}
-
 export async function handler(event) {
   const request = route(event);
 
@@ -161,23 +151,13 @@ export async function handler(event) {
     if (request.routeKey === 'POST /trackers') {
       const tracker = normalizeTrackerInput(parseJsonBody(event));
       const saved = await putTracker(session.userId, tracker);
-      if (saved.created) {
-        await sendAlertMessages([
-          trackerMessage('tracking-added', session.userId, saved.item)
-        ]);
-      }
       return json(saved.created ? 201 : 200, { tracker: publicTracker(saved.item) });
     }
 
     if (request.routeKey === 'DELETE /trackers/{trackerId}') {
       const trackerId = decodeURIComponent(event.pathParameters?.trackerId || '');
       if (!trackerId) return json(400, { error: 'Missing tracker ID.' });
-      const deleted = await deleteTracker(session.userId, trackerId);
-      if (deleted) {
-        await sendAlertMessages([
-          trackerMessage('tracking-removed', session.userId, deleted)
-        ]);
-      }
+      await deleteTracker(session.userId, trackerId);
       return { statusCode: 204, headers: { 'cache-control': 'no-store' }, body: '' };
     }
 

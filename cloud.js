@@ -5,8 +5,6 @@
   const config = window.COURSESNAG_CONFIG || {};
   const SESSION_KEY = 'csw.discordSession';
   const LEGACY_GOOGLE_KEY = 'csw.googleCredential';
-  const TOMBSTONE_KEY = 'csw.cloudTombstones';
-  const TOMBSTONE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
   const state = {
     mode: 'checking',
@@ -21,22 +19,6 @@
 
   function trackerId(tracker) {
     return `${tracker.roster}:${String(tracker.classNbr)}`;
-  }
-
-  function loadTombstones() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(TOMBSTONE_KEY) || '{}');
-      const cutoff = Date.now() - TOMBSTONE_MAX_AGE_MS;
-      return Object.fromEntries(
-        Object.entries(parsed).filter(([, deletedAt]) => Number(deletedAt) >= cutoff)
-      );
-    } catch {
-      return {};
-    }
-  }
-
-  function saveTombstones(tombstones) {
-    localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(tombstones));
   }
 
   function isSignedIn() {
@@ -92,8 +74,8 @@
     if (connected) {
       state.els.discordProfileName.textContent = discord?.displayName || 'Discord connected';
       state.els.discordProfileDetail.textContent = discord?.username
-        ? `@${discord.username} · Watchlist sync enabled · Check Discord for confirmation`
-        : 'Watchlist sync enabled · Check Discord for confirmation';
+        ? `@${discord.username} · Cloud watchlist connected`
+        : 'Cloud watchlist connected';
     } else if (hasSession) {
       state.els.discordProfileName.textContent = 'Checking account';
       state.els.discordProfileDetail.textContent = 'Restoring your Discord session';
@@ -207,7 +189,7 @@
     if (state.mode !== 'cloud' || !state.sessionToken || !state.adapter || state.syncing) return;
     state.syncing = true;
     announceState();
-    setSyncStatus('Synchronizing local and cloud watchlists…', 'working');
+    setSyncStatus('Loading your cloud watchlist…', 'working');
 
     try {
       const profilePayload = await cloudFetch('/me');
@@ -215,26 +197,8 @@
       renderAccount();
 
       const cloudPayload = await cloudFetch('/trackers');
-      const tombstones = loadTombstones();
-      const retainedCloud = [];
-
-      for (const tracker of cloudPayload.trackers || []) {
-        const id = tracker.trackerId || trackerId(tracker);
-        if (tombstones[id]) {
-          await deleteCloudTracker(id);
-          delete tombstones[id];
-        } else {
-          retainedCloud.push(tracker);
-        }
-      }
-      saveTombstones(tombstones);
-
-      state.adapter.mergeCloudTrackers(retainedCloud);
-      for (const tracker of state.adapter.getLocalTrackers()) {
-        await uploadTracker(tracker);
-      }
-
-      setSyncStatus('Watchlist up to date.', 'success');
+      state.adapter.replaceLocalTrackers(cloudPayload.trackers || []);
+      setSyncStatus('Cloud watchlist loaded.', 'success');
     } catch (error) {
       console.error('Cloud synchronization failed:', error);
       setSyncStatus(error.message, 'error');
@@ -314,7 +278,7 @@
         state.profile = payload.profile;
         localStorage.setItem(SESSION_KEY, payload.sessionToken);
         renderAccount();
-        setSyncStatus('Discord connected. Syncing your watchlist…', 'success');
+        setSyncStatus('Discord connected. Loading your cloud watchlist…', 'success');
         await syncNow();
       } else if (result === 'cancelled') {
         setSyncStatus('Discord sign-in cancelled.');
@@ -334,11 +298,6 @@
   }
 
   async function trackerAdded(tracker) {
-    const id = trackerId(tracker);
-    const tombstones = loadTombstones();
-    delete tombstones[id];
-    saveTombstones(tombstones);
-
     if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
       setSyncStatus('Saving tracker to your Discord account…', 'working');
@@ -351,16 +310,10 @@
 
   async function trackerRemoved(tracker) {
     const id = trackerId(tracker);
-    const tombstones = loadTombstones();
-    tombstones[id] = Date.now();
-    saveTombstones(tombstones);
-
     if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
       setSyncStatus('Removing tracker from your Discord account…', 'working');
       await deleteCloudTracker(id);
-      delete tombstones[id];
-      saveTombstones(tombstones);
       setSyncStatus('Tracker removed from this browser and the cloud.', 'success');
     } catch (error) {
       setSyncStatus(error.message, 'error');
