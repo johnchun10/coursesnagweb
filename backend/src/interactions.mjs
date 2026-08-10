@@ -1,6 +1,6 @@
 import { createPublicKey, verify } from 'node:crypto';
 import { config, requireConfig } from './config.mjs';
-import { acquireCommandRateLimit, listTrackers } from './storage.mjs';
+import { acquireCommandRateLimit, getProfile, listTrackers } from './storage.mjs';
 
 const EPHEMERAL_MESSAGE_FLAG = 1 << 6;
 const TRACKED_COMMAND_COOLDOWN_SECONDS = 10;
@@ -118,13 +118,29 @@ export function trackedCoursesContent(trackers) {
   return lines.join('\n');
 }
 
-function ephemeral(content) {
+export function unlinkedAccountPrompt() {
+  return {
+    content: '**CourseSnag is not linked to this Discord account yet.**\nConnect Discord through the CourseSnag setup, then run `/tracked` again.',
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: 'Set up CourseSnag',
+        url: 'https://coursesnag.pages.dev/?setup=discord'
+      }]
+    }]
+  };
+}
+
+function ephemeral(content, components = []) {
   return response(200, {
     type: 4,
     data: {
       content,
       flags: EPHEMERAL_MESSAGE_FLAG,
-      allowed_mentions: { parse: [] }
+      allowed_mentions: { parse: [] },
+      components
     }
   });
 }
@@ -167,6 +183,12 @@ export async function handler(event) {
     );
     if (!allowed) {
       return ephemeral(`Please wait ${TRACKED_COMMAND_COOLDOWN_SECONDS} seconds before using \`/tracked\` again.`);
+    }
+
+    const profile = await getProfile(userId);
+    if (!profile?.discordUserId) {
+      const prompt = unlinkedAccountPrompt();
+      return ephemeral(prompt.content, prompt.components);
     }
 
     return ephemeral(trackedCoursesContent(await listTrackers(userId)));

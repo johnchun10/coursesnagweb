@@ -65,7 +65,7 @@ show_status() {
   local account_id api_base_url table_name alert_queue_url dead_letter_queue_url
   local api_function monitor_function notifier_function interactions_function operations_function
   local api_health health_code health_seconds
-  local tracker_count account_count queue_json pending in_flight delayed dead_letters
+  local tracker_count account_json account_count queue_json pending in_flight delayed dead_letters
   local monitor_json monitor_completed monitor_checked monitor_groups monitor_alerts
   local end_time start_time metric_queries metric_data
   local budget_json budget_limit actual_spend forecast_spend
@@ -109,15 +109,16 @@ show_status() {
     --profile "$AWS_PROFILE" 2>/dev/null)"; then
     tracker_count="Unavailable"
   fi
-  if ! account_count="$(aws dynamodb scan \
+  if account_json="$(aws dynamodb scan \
     --table-name "$table_name" \
-    --filter-expression 'entityType = :profile' \
+    --filter-expression 'entityType = :profile AND attribute_exists(discordUserId)' \
     --expression-attribute-values '{":profile":{"S":"profile"}}' \
-    --select COUNT \
-    --query Count \
-    --output text \
+    --projection-expression discordUserId \
+    --output json \
     --region "$AWS_REGION" \
     --profile "$AWS_PROFILE" 2>/dev/null)"; then
+    account_count="$(jq -r '[.Items[].discordUserId.S] | unique | length' <<<"$account_json")"
+  else
     account_count="Unavailable"
   fi
 
@@ -218,7 +219,7 @@ show_status() {
   fi
   echo
   echo "Cloud data"
-  echo "  Discord accounts: $account_count"
+  echo "  Linked Discord accounts: $account_count"
   echo "  Active trackers: $tracker_count"
   if [[ -n "$monitor_completed" ]]; then
     echo "  Last monitor run: $monitor_completed"

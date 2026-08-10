@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
 import {
   trackedCoursesContent,
+  unlinkedAccountPrompt,
   verifyInteractionSignature
 } from '../src/interactions.mjs';
 
@@ -59,4 +60,15 @@ test('formats a private tracked-course summary', () => {
   assert.doesNotMatch(content, /12345/);
   assert.doesNotMatch(content, /coursesnag\.pages\.dev/);
   assert.match(trackedCoursesContent([]), /cloud watchlist is empty/);
+});
+
+test('directs an unlinked Discord user to CourseSnag setup', () => {
+  const prompt = unlinkedAccountPrompt();
+  assert.match(prompt.content, /not linked/);
+  assert.match(prompt.content, /\/tracked/);
+  assert.equal(prompt.components[0].components[0].label, 'Set up CourseSnag');
+  assert.equal(
+    prompt.components[0].components[0].url,
+    'https://coursesnag.pages.dev/?setup=discord'
+  );
 });

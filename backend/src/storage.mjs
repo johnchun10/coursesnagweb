@@ -358,5 +358,23 @@ export async function listDiscordProfiles() {
     profiles.push(...(result.Items || []));
     ExclusiveStartKey = result.LastEvaluatedKey;
   } while (ExclusiveStartKey);
-  return profiles;
+  return deduplicateDiscordProfiles(profiles);
+}
+
+export function deduplicateDiscordProfiles(profiles) {
+  const uniqueProfiles = new Map();
+  for (const profile of profiles) {
+    const discordUserId = String(profile.discordUserId || '');
+    if (!discordUserId) continue;
+
+    const existing = uniqueProfiles.get(discordUserId);
+    const canonicalKey = userPk(discordUserId);
+    const profileIsCanonical = profile.PK === canonicalKey;
+    const existingIsCanonical = existing?.PK === canonicalKey;
+    const profileIsNewer = String(profile.updatedAt || '') > String(existing?.updatedAt || '');
+    if (!existing || (profileIsCanonical && !existingIsCanonical) || (profileIsCanonical === existingIsCanonical && profileIsNewer)) {
+      uniqueProfiles.set(discordUserId, profile);
+    }
+  }
+  return [...uniqueProfiles.values()];
 }

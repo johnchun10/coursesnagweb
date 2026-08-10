@@ -39,6 +39,8 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Discord messages implemented for connection confirmation, open, closed/waitlisted, and idempotent seasonal ONLINE/OFFLINE transitions; add/remove messages intentionally suppressed.
 - [x] API throttling enabled.
 - [x] Private `/tracked` Discord command with signature verification and a ten-second per-user cooldown.
+- [x] `/tracked` onboarding link for unlinked Discord users and unique linked-account operational counts.
+- [x] Remove obsolete Google-era profile rows after confirming they had no dependent records.
 - [x] Backend tests and CloudFormation validation passing.
 
 ## Current phase: live Discord verification
@@ -67,6 +69,24 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [ ] Review policies before public use.
 - [ ] Delete the seven stale pre-fix dead-letter messages after owner approval; do not replay them.
 - [ ] Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
+
+## Edge-case backlog
+
+### High priority
+
+- [ ] Detect users who complete Discord OAuth without joining the shared server or allowing bot DMs; show actionable recovery instead of silently accepting a connection whose alerts cannot be delivered.
+- [ ] Record and surface Cornell group-level monitor failures so a partial Cornell outage cannot look like a fully healthy Lambda run.
+- [ ] Add an owner alarm for new dead-letter messages and define a safe inspect/delete workflow.
+- [ ] Prevent transition races: no course alert should arrive after OFFLINE, and ONLINE should precede the first resumed course alert.
+- [ ] Make `/tracked` state that monitoring is paused when CourseSnag is in Local Standby.
+
+### Medium priority
+
+- [ ] Make `start` and `stop` detect and repair drift between the SSM mode flag and EventBridge rule state.
+- [ ] Decide whether a temporary API/network failure should persistently switch a browser from Cloud to Local or only fall back for that session.
+- [ ] Handle missing Cornell sections and expired roster terms instead of leaving a tracker at a stale status indefinitely.
+- [ ] Add DynamoDB point-in-time recovery or another small-data backup strategy before public use.
+- [ ] Define and test the monitor's maximum roster/subject group count before its 55-second timeout requires batching.
 
 ## Owner commands
 

@@ -1555,6 +1555,8 @@
   // Initialization
   // ============================================
   async function init() {
+    const setupParams = new URLSearchParams(window.location.search);
+    const discordSetupRequested = setupParams.get('setup') === 'discord';
     // Attach event listeners
     els.searchInput.addEventListener('input', onSearchInput);
     els.searchResults.addEventListener('click', onSearchResultsClick);
@@ -1614,12 +1616,22 @@
     renderAlertMode();
     loadTrackedSections();
     loadDismissedAlerts();
-    if (!state.alertMode) {
+    if (!state.alertMode && !discordSetupRequested) {
       requestAnimationFrame(() => openSettings(true));
     }
     await window.CourseSnagCloud?.initialize({
       replaceLocalTrackers
     });
+    if (discordSetupRequested) {
+      setupParams.delete('setup');
+      const remainingQuery = setupParams.toString();
+      window.history.replaceState(
+        {},
+        '',
+        `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}${window.location.hash}`
+      );
+      openSettings(true);
+    }
     await loadRosters();
 
     // Enable refresh button and start polling
