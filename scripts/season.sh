@@ -11,6 +11,7 @@ set +a
 : "${AWS_PROFILE:=coursesnag}"
 : "${AWS_REGION:=us-east-1}"
 : "${STACK_NAME:=coursesnag-dev}"
+: "${STAGE_NAME:=dev}"
 
 stack_output() {
   local key="$1"
@@ -277,11 +278,34 @@ announce_season_status() {
   rm -f "$result_file"
 }
 
+set_discord_description_status() {
+  local status="$1"
+  local bot_token description request_body
+
+  bot_token="$(aws ssm get-parameter \
+    --name "/coursesnag/${STAGE_NAME}/discord/bot-token" \
+    --with-decryption \
+    --query Parameter.Value \
+    --output text \
+    --region "$AWS_REGION" \
+    --profile "$AWS_PROFILE")"
+  description="$(printf 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev\n\nStatus: %s' "$status")"
+  request_body="$(jq -nc --arg description "$description" '{description: $description}')"
+
+  curl -fsS \
+    -X PATCH \
+    -H "Authorization: Bot $bot_token" \
+    -H 'Content-Type: application/json' \
+    --data "$request_body" \
+    https://discord.com/api/v10/applications/@me >/dev/null
+}
+
 case "$ACTION" in
   start)
     PREVIOUS_MODE="$(current_mode)"
     if [[ "$PREVIOUS_MODE" == "cloud" ]]; then
-      echo "CourseSnag is already in Cloud Active mode. No Discord alert was sent."
+      set_discord_description_status ONLINE
+      echo "CourseSnag is already in Cloud Active mode. No Discord alert was sent; the application description confirms Status: ONLINE."
       exit 0
     fi
     aws ssm put-parameter \
@@ -303,12 +327,14 @@ case "$ACTION" in
       --name "$RULE_NAME" \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE"
-    echo "CourseSnag is in Cloud Active mode. The shared monitor runs once per minute."
+    set_discord_description_status ONLINE
+    echo "CourseSnag is in Cloud Active mode. The shared monitor runs once per minute and the application description shows Status: ONLINE."
     ;;
   stop)
     PREVIOUS_MODE="$(current_mode)"
     if [[ "$PREVIOUS_MODE" == "local" ]]; then
-      echo "CourseSnag is already in Local Standby mode. No Discord alert was sent."
+      set_discord_description_status OFFLINE
+      echo "CourseSnag is already in Local Standby mode. No Discord alert was sent; the application description confirms Status: OFFLINE."
       exit 0
     fi
     aws ssm put-parameter \
@@ -330,7 +356,8 @@ case "$ACTION" in
       --overwrite \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE" >/dev/null
-    echo "CourseSnag is in Local Standby mode. Scheduled AWS polling is disabled."
+    set_discord_description_status OFFLINE
+    echo "CourseSnag is in Local Standby mode. Scheduled AWS polling is disabled and the application description shows Status: OFFLINE."
     ;;
   status)
     show_status

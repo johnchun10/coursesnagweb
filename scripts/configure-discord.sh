@@ -30,9 +30,22 @@ DISCORD_BOT_TOKEN="$(aws ssm get-parameter \
   --profile "$AWS_PROFILE")"
 trap 'unset DISCORD_BOT_TOKEN' EXIT
 
+CURRENT_MODE="$(aws ssm get-parameter \
+  --name "/coursesnag/${STAGE_NAME}/mode" \
+  --query Parameter.Value \
+  --output text \
+  --region "$AWS_REGION" \
+  --profile "$AWS_PROFILE")"
+if [[ "$CURRENT_MODE" == "cloud" ]]; then
+  DISCORD_STATUS="ONLINE"
+else
+  DISCORD_STATUS="OFFLINE"
+fi
+DISCORD_DESCRIPTION="$(printf 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev\n\nStatus: %s' "$DISCORD_STATUS")"
+
 ENDPOINT_BODY="$(jq -nc \
   --arg url "$INTERACTIONS_URL" \
-  --arg description 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev' \
+  --arg description "$DISCORD_DESCRIPTION" \
   '{interactions_endpoint_url: $url, description: $description}')"
 curl -fsS \
   -X PATCH \
@@ -56,5 +69,5 @@ curl -fsS \
   "https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/commands" >/dev/null
 
 echo "Discord interactions endpoint configured: $INTERACTIONS_URL"
-echo "Discord application description updated."
+echo "Discord application description updated: Status: $DISCORD_STATUS"
 echo "Discord command registered: /tracked"

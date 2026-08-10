@@ -41,7 +41,7 @@ aws sso login --profile coursesnag
 ./scripts/deploy.sh
 ```
 
-Deployment also validates Discord's interaction endpoint and registers the global `/tracked` command.
+Deployment also validates Discord's interaction endpoint, registers the global `/tracked` command, and sets the application description's `Status: ONLINE` or `Status: OFFLINE` line from the current seasonal mode.
 
 Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub publishing workflow or manual Cloudflare upload is needed: push the intended frontend commit to the connected branch and wait for Pages to finish.
 
@@ -73,7 +73,7 @@ The deployed Discord callback can remain unchanged, but `FRONTEND_ORIGIN` must p
 ./scripts/season.sh stop
 ```
 
-Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the OFFLINE Discord notice before disabling the monitor and setting Local Standby. `start` enables monitoring and queues the ONLINE notice. Repeating a command while CourseSnag is already in that mode does not send duplicate notices. On the next mode check or page refresh after `stop`, browsers previously using Cloud automatically switch to Local mode. Account/watchlist data and the static website remain available.
+Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the OFFLINE Discord notice before disabling the monitor and setting Local Standby. `start` enables monitoring and queues the ONLINE notice. Both commands also update the Discord application description with the matching status. Repeating a command while CourseSnag is already in that mode does not send duplicate notices, but it does repair the description if its status is stale. On the next mode check or page refresh after `stop`, browsers previously using Cloud automatically switch to Local mode. Account/watchlist data and the static website remain available.
 
 Run them from the project directory on the Mac where the AWS CLI profile is configured. Local Standby keeps the small serverless API available so the website can select Local automatically and keep the Cloud choice unavailable; there is no continuously running server to stop. Do not manually delete or disable individual AWS resources.
 
@@ -81,7 +81,7 @@ Run them from the project directory on the Mac where the AWS CLI profile is conf
 
 Inspect quarantined alerts without changing them with `./scripts/dead-letters.sh inspect`. Permanently clear the dead-letter queue with `./scripts/dead-letters.sh purge`; the command requires typing `PURGE` and does not replay messages.
 
-The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence therefore appears offline in both seasonal modes. The most recent ONLINE or OFFLINE DM communicates the actual CourseSnag monitoring state without adding a continuously running AWS service.
+The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence dot therefore appears offline in both seasonal modes. The persistent `Status: ONLINE` or `Status: OFFLINE` application-description line and the most recent seasonal DM communicate the actual CourseSnag monitoring state without adding a continuously running AWS service.
 
 Free-form messages sent to the bot are not received by CourseSnag. Use `/tracked` for an on-demand response. The OFFLINE message is a one-time transition DM sent by `season.sh stop`; Discord stores it in the conversation, but does not automatically resend it when a user writes another message.
 

@@ -32,6 +32,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Automatic synchronization on load, refresh, add, and removal.
 - [x] Unique seasonal alert identities so rapid OFFLINE/ONLINE rehearsals are not deduplicated by SQS.
 - [x] Detailed owner status command with health, usage, queue, monitor, error, and budget summaries.
+- [x] Persistent Discord application-description status synchronized by seasonal controls and deployments.
 - [x] Discord callback and encrypted bot/client credentials.
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
 - [x] Discord-only account design using revocable, hashed 30-day CourseSnag sessions.
