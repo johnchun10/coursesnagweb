@@ -30,7 +30,10 @@ DISCORD_BOT_TOKEN="$(aws ssm get-parameter \
   --profile "$AWS_PROFILE")"
 trap 'unset DISCORD_BOT_TOKEN' EXIT
 
-ENDPOINT_BODY="$(jq -nc --arg url "$INTERACTIONS_URL" '{interactions_endpoint_url: $url}')"
+ENDPOINT_BODY="$(jq -nc \
+  --arg url "$INTERACTIONS_URL" \
+  --arg description 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev' \
+  '{interactions_endpoint_url: $url, description: $description}')"
 curl -fsS \
   -X PATCH \
   -H "Authorization: Bot $DISCORD_BOT_TOKEN" \
@@ -53,4 +56,5 @@ curl -fsS \
   "https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/commands" >/dev/null
 
 echo "Discord interactions endpoint configured: $INTERACTIONS_URL"
+echo "Discord application description updated."
 echo "Discord command registered: /tracked"
