@@ -52,7 +52,8 @@ Discord messages are generated when:
 - a Discord connection succeeds;
 - a section changes to open; or
 - a section changes to closed/waitlisted, including the first observed status after adding it; or
-- Cloud Active is manually placed into Local Standby for the off-season.
+- Cloud Active is manually placed into Local Standby for the off-season; or
+- Local Standby is manually returned to Cloud Active.
 
 Adding and removing trackers does not send Discord messages. The private `/tracked` command lists the caller's current cloud watchlist. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read.
 
@@ -85,6 +86,10 @@ The `GSI1` index lets one monitor invocation load every active tracker. Trackers
 ```
 
 Local Standby does not delete AWS resources or account data. It disables scheduled monitoring while leaving the small on-demand API available for mode checks and future sign-in.
+
+The seasonal command sends one OFFLINE DM when it changes from Cloud Active to Local Standby and one ONLINE DM when it changes back. Repeating `start` or `stop` while already in that mode does not send another status DM.
+
+CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. This keeps the backend serverless, but Discord therefore shows the bot itself as offline even during Cloud Active. The latest seasonal DM is the durable user-facing status indicator.
 
 If a browser was previously set to Cloud and AWS reports Local Standby or cannot be reached, the website automatically changes that browser to Local mode. The Cloud choice remains unavailable until Cloud Active returns.
 

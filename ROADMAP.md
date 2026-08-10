@@ -34,7 +34,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
 - [x] Discord-only account design using revocable, hashed 30-day CourseSnag sessions.
 - [x] Tracker database write fixed by escaping DynamoDB's reserved `section` attribute.
-- [x] Discord messages implemented for connection confirmation, open, closed/waitlisted, and seasonal shutdown; add/remove messages intentionally suppressed.
+- [x] Discord messages implemented for connection confirmation, open, closed/waitlisted, and idempotent seasonal ONLINE/OFFLINE transitions; add/remove messages intentionally suppressed.
 - [x] API throttling enabled.
 - [x] Private `/tracked` Discord command with signature verification and a ten-second per-user cooldown.
 - [x] Backend tests and CloudFormation validation passing.
@@ -55,7 +55,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Remove tracker-added and tracker-removed Discord messages from the product behavior.
 - [x] Verify `/tracked` against the production watchlist and cooldown.
 - [ ] Verify notifier retries and dead-letter behavior.
-- [ ] Verify seasonal shutdown announcement.
+- [ ] Verify seasonal OFFLINE and ONLINE announcements during a full mode rehearsal.
 
 ## Later work
 

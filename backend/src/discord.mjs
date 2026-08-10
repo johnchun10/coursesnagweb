@@ -57,9 +57,15 @@ function courseName(tracker) {
 }
 
 export function notificationContent(message) {
-  if (message.type === 'season-shutdown') {
+  if (message.type === 'season-offline') {
     return {
-      content: 'CourseSnag cloud tracking is going to sleep for the off-season. Your saved browser watchlist can continue tracking locally whenever you keep CourseSnag open. Cloud tracking and Discord alerts will return before the next enrollment period.'
+      content: 'CourseSnag cloud tracking is currently **OFFLINE**. We will return before the next enrollment period!'
+    };
+  }
+
+  if (message.type === 'season-online') {
+    return {
+      content: 'CourseSnag cloud tracking is back **ONLINE**! Track your courses at https://coursesnag.pages.dev'
     };
   }
 

@@ -73,9 +73,11 @@ The deployed Discord callback can remain unchanged, but `FRONTEND_ORIGIN` must p
 ./scripts/season.sh stop
 ```
 
-Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the off-season Discord notice before disabling the monitor and setting Local Standby. On the next mode check or page refresh, browsers previously using Cloud automatically switch to Local mode. Account/watchlist data and the static website remain available.
+Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the OFFLINE Discord notice before disabling the monitor and setting Local Standby. `start` enables monitoring and queues the ONLINE notice. Repeating a command while CourseSnag is already in that mode does not send duplicate notices. On the next mode check or page refresh after `stop`, browsers previously using Cloud automatically switch to Local mode. Account/watchlist data and the static website remain available.
 
 Run them from the project directory on the Mac where the AWS CLI profile is configured. Local Standby keeps the small serverless API available so the website can select Local automatically and keep the Cloud choice unavailable; there is no continuously running server to stop. Do not manually delete or disable individual AWS resources.
+
+The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence therefore appears offline in both seasonal modes. The most recent ONLINE or OFFLINE DM communicates the actual CourseSnag monitoring state without adding a continuously running AWS service.
 
 ## Operational checks
 
