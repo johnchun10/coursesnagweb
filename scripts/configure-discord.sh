@@ -53,7 +53,7 @@ case "$ACTION" in
     exit 1
     ;;
 esac
-DISCORD_DESCRIPTION="Track and get alerts for your Cornell courses: https://coursesnag.pages.dev Status: $DISCORD_STATUS"
+DISCORD_DESCRIPTION="$(printf 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev\nStatus: %s' "$DISCORD_STATUS")"
 
 if [[ "$DISCORD_STATUS" == "ONLINE" ]]; then
   ENDPOINT_BODY="$(jq -nc \
