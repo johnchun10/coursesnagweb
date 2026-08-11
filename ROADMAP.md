@@ -79,7 +79,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Record and surface Cornell group-level monitor failures so a partial Cornell outage cannot look like a fully healthy Lambda run.
 - [x] Add an owner alarm for new dead-letter messages and define a safe inspect/delete workflow.
 - [x] Prevent transition races: no course alert should arrive after OFFLINE, and ONLINE should precede the first resumed course alert.
-- [x] Make `/tracked` state that monitoring is paused when CourseSnag is in Local Standby.
+- [x] Make `/tracked` return only OFFLINE, without stale course data, in Local Standby.
 
 ### Medium priority
 

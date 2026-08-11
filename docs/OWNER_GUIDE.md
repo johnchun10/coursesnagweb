@@ -83,7 +83,7 @@ Inspect quarantined alerts without changing them with `./scripts/dead-letters.sh
 
 The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence dot therefore appears offline in both seasonal modes. The persistent `Status: ONLINE` or `Status: OFFLINE` application-description line and the most recent seasonal DM communicate the actual CourseSnag monitoring state without adding a continuously running AWS service.
 
-Free-form messages sent to the bot are not received by CourseSnag. Use `/tracked` for an on-demand response. The OFFLINE message is a one-time transition DM sent by `season.sh stop`; Discord stores it in the conversation, but does not automatically resend it when a user writes another message.
+Free-form messages sent to the bot are not received by CourseSnag. During Cloud Active, `/tracked` lists the cloud watchlist. During Local Standby, `/tracked` returns only the OFFLINE status and does not display the stale cloud watchlist. The OFFLINE transition message is a one-time DM sent by `season.sh stop`; Discord stores it in the conversation, but does not automatically resend it when a user writes another message.
 
 After deploying the operations alarm for the first time, confirm the separate AWS SNS subscription email. Budget-alert confirmation does not also confirm operational alerts. The dead-letter alarm costs approximately USD 0.10 per month at standard CloudWatch alarm pricing.
 

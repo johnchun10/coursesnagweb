@@ -55,7 +55,7 @@ Discord messages are generated when:
 - Cloud Active is manually placed into Local Standby for the off-season; or
 - Local Standby is manually returned to Cloud Active.
 
-Adding and removing trackers does not send Discord messages. The private `/tracked` command lists the caller's current cloud watchlist. If the Discord identity is not linked, it returns a **Set up CourseSnag** link that opens the website's alert-mode onboarding. During Local Standby, the response explicitly warns that saved courses are not being checked and course-status alerts will not be sent. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read. Seasonal operations deduplicate legacy profile rows by Discord user ID and prefer the canonical Discord-owned profile.
+Adding and removing trackers does not send Discord messages. During Cloud Active, the private `/tracked` command lists the caller's current cloud watchlist. During Local Standby, it returns only `CourseSnag cloud tracking is currently OFFLINE` and does not read or display the stale cloud watchlist. If the Discord identity is not linked, it returns a **Set up CourseSnag** link that opens the website's alert-mode onboarding. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read. Seasonal operations deduplicate legacy profile rows by Discord user ID and prefer the canonical Discord-owned profile.
 
 ## DynamoDB layout
 

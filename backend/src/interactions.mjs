@@ -81,10 +81,8 @@ function statusLabel(status) {
 }
 
 export function trackedCoursesContent(trackers, { monitoringActive = true } = {}) {
-  const modeNotice = monitoringActive
-    ? ''
-    : '⚠️ **Cloud monitoring is currently paused.** Saved courses are not being checked and course-status alerts will not be sent.\n\n';
-  if (!trackers.length) return `${modeNotice}**Tracked courses (0)**\nYour cloud watchlist is empty.`;
+  if (!monitoringActive) return 'CourseSnag cloud tracking is currently **OFFLINE**.';
+  if (!trackers.length) return '**Tracked courses (0)**\nYour cloud watchlist is empty.';
 
   const ordered = [...trackers].sort((left, right) => [
     left.roster,
@@ -119,7 +117,7 @@ export function trackedCoursesContent(trackers, { monitoringActive = true } = {}
   if (included < ordered.length) {
     lines.push(`_Showing ${included} of ${ordered.length} tracked courses._`);
   }
-  return `${modeNotice}${lines.join('\n')}`;
+  return lines.join('\n');
 }
 
 export function unlinkedAccountPrompt() {
@@ -195,13 +193,13 @@ export async function handler(event) {
       return ephemeral(prompt.content, prompt.components);
     }
 
-    const [trackers, mode] = await Promise.all([
-      listTrackers(userId),
-      currentMode()
-    ]);
-    return ephemeral(trackedCoursesContent(trackers, {
-      monitoringActive: mode === 'cloud'
-    }));
+    const mode = await currentMode();
+    if (mode !== 'cloud') {
+      return ephemeral(trackedCoursesContent([], { monitoringActive: false }));
+    }
+
+    const trackers = await listTrackers(userId);
+    return ephemeral(trackedCoursesContent(trackers));
   } catch (error) {
     console.error('Discord interaction failed', {
       command: interaction.data?.name,
