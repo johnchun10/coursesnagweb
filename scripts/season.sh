@@ -321,6 +321,10 @@ case "$ACTION" in
     PREVIOUS_MODE="$(current_mode)"
     if [[ "$PREVIOUS_MODE" == "cloud" ]]; then
       set_request_functions_enabled true
+      aws events enable-rule \
+        --name "$RULE_NAME" \
+        --region "$AWS_REGION" \
+        --profile "$AWS_PROFILE"
       configure_discord online
       echo "CourseSnag is already in Cloud Active mode. No Discord alert was sent; /tracked is available and the application description confirms Status: ONLINE."
       exit 0
@@ -351,8 +355,12 @@ case "$ACTION" in
   stop)
     PREVIOUS_MODE="$(current_mode)"
     if [[ "$PREVIOUS_MODE" == "local" ]]; then
-      configure_discord offline
+      aws events disable-rule \
+        --name "$RULE_NAME" \
+        --region "$AWS_REGION" \
+        --profile "$AWS_PROFILE"
       set_request_functions_enabled false
+      configure_discord offline
       echo "CourseSnag is already in Local Standby mode. No Discord alert was sent; /tracked is unavailable and the application description confirms Status: OFFLINE."
       exit 0
     fi
@@ -375,8 +383,8 @@ case "$ACTION" in
       --overwrite \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE" >/dev/null
-    configure_discord offline
     set_request_functions_enabled false
+    configure_discord offline
     echo "CourseSnag is in Local Standby mode. Scheduled AWS polling and /tracked are disabled, and the application description shows Status: OFFLINE."
     ;;
   status)

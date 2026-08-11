@@ -41,7 +41,7 @@ aws sso login --profile coursesnag
 ./scripts/deploy.sh
 ```
 
-Deployment synchronizes Discord with the current mode. In Cloud Active it validates the interaction endpoint and registers `/tracked`; in Local Standby it removes `/tracked`. It also sets the application description's `Status: ONLINE` or `Status: OFFLINE` text on the line immediately below the CourseSnag link, without an empty line between them.
+Deployment reconciles AWS and Discord with the current stable mode without sending a seasonal DM. In Cloud Active it enables the request Lambdas and monitor, validates the interaction endpoint, and registers `/tracked`; in Local Standby it disables the request Lambdas and monitor and removes `/tracked`. It also sets the application description's `Status: ONLINE` or `Status: OFFLINE` text on the line immediately below the CourseSnag link, without an empty line between them. Deployment stops with an error instead of guessing if it finds a transitional `starting` or `stopping` mode.
 
 Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub publishing workflow or manual Cloudflare upload is needed: push the intended frontend commit to the connected branch and wait for Pages to finish.
 

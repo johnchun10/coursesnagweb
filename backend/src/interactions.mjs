@@ -204,7 +204,14 @@ export async function handler(event) {
       return ephemeral(prompt.content, prompt.components);
     }
 
-    await markUserActive(userId);
+    try {
+      await markUserActive(userId);
+    } catch (error) {
+      console.warn('Discord daily activity update failed', {
+        userId,
+        message: error.message
+      });
+    }
     const trackers = await listTrackers(userId);
     return ephemeral(trackedCoursesContent(trackers));
   } catch (error) {

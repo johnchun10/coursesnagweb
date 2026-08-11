@@ -126,11 +126,19 @@ export async function handler(event) {
 
     const session = await authenticateSession(event);
     if (!session) return json(401, { error: 'Discord sign-in is required.' });
-    await markUserActive(session.userId);
 
     if (request.routeKey === 'DELETE /session') {
       await revokeSession(session.tokenHash);
       return { statusCode: 204, headers: { 'cache-control': 'no-store' }, body: '' };
+    }
+
+    try {
+      await markUserActive(session.userId);
+    } catch (error) {
+      console.warn('Daily activity update failed', {
+        userId: session.userId,
+        message: error.message
+      });
     }
 
     if (request.routeKey === 'GET /me') {

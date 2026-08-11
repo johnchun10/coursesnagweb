@@ -96,4 +96,22 @@ aws cloudformation describe-stacks \
   --region "$AWS_REGION" \
   --profile "$AWS_PROFILE"
 
-"$PROJECT_ROOT/scripts/configure-discord.sh"
+CURRENT_MODE="$(aws ssm get-parameter \
+  --name "/coursesnag/${STAGE_NAME}/mode" \
+  --query Parameter.Value \
+  --output text \
+  --region "$AWS_REGION" \
+  --profile "$AWS_PROFILE")"
+
+case "$CURRENT_MODE" in
+  cloud)
+    "$PROJECT_ROOT/scripts/season.sh" start
+    ;;
+  local)
+    "$PROJECT_ROOT/scripts/season.sh" stop
+    ;;
+  *)
+    echo "Deployment completed, but CourseSnag is in transitional mode '$CURRENT_MODE'. Run season.sh start or stop to finish the transition." >&2
+    exit 1
+    ;;
+esac

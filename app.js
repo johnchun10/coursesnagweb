@@ -1508,6 +1508,9 @@
     saveToStorage('alertMode', state.alertMode);
     renderAlertMode();
     showSettingsView(state.alertMode);
+    if (state.alertMode === 'cloud') {
+      void window.CourseSnagCloud?.syncNow?.();
+    }
   }
 
   function switchAlertMode() {
@@ -1518,6 +1521,9 @@
     saveToStorage('alertMode', nextMode);
     renderAlertMode();
     showSettingsView(nextMode);
+    if (nextMode === 'cloud') {
+      void window.CourseSnagCloud?.syncNow?.();
+    }
   }
 
   function onSettingsPrimaryAction() {
