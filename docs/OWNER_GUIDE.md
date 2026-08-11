@@ -61,9 +61,22 @@ While signed in, browser changes are saved to AWS. Signing out leaves the browse
 
 ## Local Cloud-mode development
 
-Direct `file://` pages have an opaque origin and remain Local-only. To test Cloud mode locally, serve the site over HTTP, such as `http://localhost:4173`, and add that exact origin to the AWS HTTP API CORS configuration while retaining the production origin.
+Direct `file://` pages have an opaque origin and remain Local-only. The deployed API authorizes exactly the production site and `http://localhost:4173`. Start the local site with:
 
-The deployed Discord callback can remain unchanged, but `FRONTEND_ORIGIN` must point to the frontend being tested if the callback should return to localhost. Treat localhost as a temporary development configuration and restore the production origin before release.
+```bash
+./scripts/local.sh
+```
+
+Then open `http://localhost:4173`. Cloud Active status, watchlist synchronization, and Discord sign-in all work from that origin. Each OAuth attempt stores its trusted return origin, so a local sign-in returns to localhost while a production sign-in returns to Cloudflare; the AWS callback itself does not change. A localhost browser has separate browser storage and must connect Discord once even if the production site is already signed in.
+
+The helper intentionally uses port `4173`. Another port is blocked unless both the deployment setting and local helper are deliberately changed. Cloud testing remains unavailable while CourseSnag is in Local Standby because the request Lambda is disabled.
+
+## Public policy pages
+
+- Privacy Policy: `https://coursesnag.pages.dev/privacy.html`
+- Terms of Service: `https://coursesnag.pages.dev/terms.html`
+
+After the pages are live, add those exact URLs to the matching fields in the Discord Developer Portal's application settings. Review the policy text before opening CourseSnag beyond the current test group, especially the manual data-request contact route through the shared Discord server.
 
 ## Seasonal operation
 
@@ -100,7 +113,6 @@ The caller ARN should contain an assumed SSO role, not `root`. Review CloudWatch
 
 ## Remaining production work
 
-- Add Privacy and Terms pages and configure their URLs in Discord.
+- Configure the live Privacy and Terms URLs in Discord and review the policies before public use.
 - Verify notifier retry/dead-letter behavior.
-- Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
 - Add local watchlist export/import.

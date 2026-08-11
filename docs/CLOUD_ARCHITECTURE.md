@@ -15,15 +15,17 @@ Cloudflare hosts the frontend at `https://coursesnag.pages.dev`. AWS hosts only 
 
 Discord is the only CourseSnag account provider and alert destination.
 
-1. The browser requests a ten-minute, single-use OAuth state from AWS.
+1. The browser requests a ten-minute, single-use OAuth state from AWS. The state records whether the request came from the production site or the authorized localhost development origin.
 2. Discord asks the user to identify themselves.
 3. Discord returns a one-time code to the AWS callback.
 4. AWS exchanges the code server-side, reads the stable Discord user ID and display profile, then immediately revokes the temporary Discord access token.
-5. AWS redirects the browser with a two-minute, single-use CourseSnag login code.
+5. AWS redirects the browser to that exact trusted origin with a two-minute, single-use CourseSnag login code.
 6. The browser exchanges that code for a random 30-day CourseSnag session token.
 7. DynamoDB stores only the session token's SHA-256 hash. The browser uses the opaque token as a bearer credential for watchlist requests.
 
 Signing out revokes the server-side session but does not erase the browser-local watchlist. Connecting a Discord account replaces the browser list with that account's AWS watchlist, including replacing it with an empty list. Local-only trackers are never uploaded as part of sign-in.
+
+API Gateway CORS accepts only `https://coursesnag.pages.dev` and `http://localhost:4173`. The localhost option supports complete Cloud-mode UI and Discord OAuth testing without changing the production callback destination globally. `file://`, other ports, and arbitrary origins remain unauthorized.
 
 ## Request and notification flow
 
@@ -103,6 +105,7 @@ If a browser was previously set to Cloud and AWS reports Local Standby or cannot
 - The Discord client secret and bot token are encrypted SSM `SecureString` parameters and are never sent to the browser.
 - Discord's public interaction verification key is safe to store in the deployment configuration.
 - OAuth states and login codes are random, single use, and short lived.
+- OAuth return locations are restricted to the configured production and localhost origins to prevent open redirects.
 - CourseSnag session tokens are random, revocable, expire after 30 days, and are stored only as hashes in AWS.
 - The API is throttled, private website routes authenticate sessions in Lambda, and Discord commands require Ed25519 signatures plus per-user cooldowns.
 - The notifier does not need a continuously connected Discord Gateway process; it uses Discord's HTTP API only when a message is queued.

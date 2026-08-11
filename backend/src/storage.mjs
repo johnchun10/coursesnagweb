@@ -72,7 +72,7 @@ export async function markUserActive(userId) {
   }));
 }
 
-export async function putDiscordOAuthState(state, lifetimeSeconds) {
+export async function putDiscordOAuthState(state, lifetimeSeconds, returnOrigin) {
   requireConfig('tableName');
   const nowSeconds = Math.floor(Date.now() / 1000);
   await documentClient.send(new PutCommand({
@@ -81,6 +81,7 @@ export async function putDiscordOAuthState(state, lifetimeSeconds) {
       PK: `OAUTH#${state}`,
       SK: 'DISCORD',
       entityType: 'oauthState',
+      returnOrigin,
       createdAt: new Date(nowSeconds * 1000).toISOString(),
       expiresAt: nowSeconds + lifetimeSeconds
     },

@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 process.env.DISCORD_APPLICATION_ID = '1534241192819163296';
+process.env.FRONTEND_ORIGIN = 'https://coursesnag.pages.dev';
+process.env.LOCAL_DEVELOPMENT_ORIGIN = 'http://localhost:4173';
 const {
   buildDiscordAuthorizationUrl,
-  publicDiscordIdentity
+  publicDiscordIdentity,
+  resolveFrontendOrigin
 } = await import('../src/discord-oauth.mjs');
 
 test('builds a scoped Discord authorization URL', () => {
@@ -38,4 +41,14 @@ test('keeps only the Discord identity fields CourseSnag needs', () => {
 
 test('rejects an incomplete Discord identity', () => {
   assert.throws(() => publicDiscordIdentity({ id: '123456789' }), /incomplete user identity/);
+});
+
+test('allows only production and the configured localhost origin for OAuth returns', () => {
+  assert.equal(resolveFrontendOrigin('https://coursesnag.pages.dev'), 'https://coursesnag.pages.dev');
+  assert.equal(resolveFrontendOrigin('http://localhost:4173/settings'), 'http://localhost:4173');
+  assert.equal(resolveFrontendOrigin('https://malicious.example'), 'https://coursesnag.pages.dev');
+  assert.throws(
+    () => resolveFrontendOrigin('https://malicious.example', true),
+    /not allowed/
+  );
 });

@@ -7,6 +7,7 @@ export const config = {
   discordApplicationId: process.env.DISCORD_APPLICATION_ID || '',
   discordPublicKey: process.env.DISCORD_PUBLIC_KEY || '',
   frontendOrigin: process.env.FRONTEND_ORIGIN || 'https://coursesnag.pages.dev',
+  localDevelopmentOrigin: process.env.LOCAL_DEVELOPMENT_ORIGIN || 'http://localhost:4173',
   stageName: process.env.STAGE_NAME || 'dev',
   cornellApiBase: process.env.CORNELL_API_BASE || 'https://classes.cornell.edu/api/2.0'
 };

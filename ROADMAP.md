@@ -45,6 +45,9 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] `/tracked` onboarding link for unlinked Discord users and unique linked-account operational counts.
 - [x] Remove obsolete Google-era profile rows after confirming they had no dependent records.
 - [x] Backend tests and CloudFormation validation passing.
+- [x] Full Cloud Active → Local Standby → Cloud Active rehearsal with both seasonal Discord announcements.
+- [x] Exact-origin localhost Cloud testing, including a localhost-aware Discord OAuth return.
+- [x] Public Privacy Policy and Terms of Service pages linked from the tracker.
 
 ## Current phase: live Discord verification
 
@@ -62,13 +65,14 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Remove tracker-added and tracker-removed Discord messages from the product behavior.
 - [x] Verify `/tracked` against the production watchlist and cooldown.
 - [x] Verify notifier retries and dead-letter behavior; seven stale pre-fix test messages remain quarantined.
-- [ ] Verify seasonal OFFLINE and ONLINE announcements during a full mode rehearsal.
+- [x] Verify seasonal OFFLINE and ONLINE announcements during a full mode rehearsal.
 
 ## Later work
 
-- [ ] Authorize an HTTP localhost origin in AWS CORS for local Cloud-mode UI testing; direct `file://` access remains Local-only.
+- [x] Authorize an HTTP localhost origin in AWS CORS for local Cloud-mode UI testing; direct `file://` access remains Local-only.
 - [ ] Add export/import backup for local watchlists.
-- [ ] Add `/privacy` and `/terms` pages and configure their Discord URLs.
+- [x] Add Privacy Policy and Terms of Service pages.
+- [ ] Configure the production Privacy Policy and Terms URLs in Discord.
 - [ ] Review policies before public use.
 - [ ] Delete the seven stale pre-fix dead-letter messages after owner approval; do not replay them.
 - [ ] Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.

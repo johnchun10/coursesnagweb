@@ -10,6 +10,9 @@ Parameters:
   AllowedOrigin:
     Type: String
     Default: https://coursesnag.pages.dev
+  LocalDevelopmentOrigin:
+    Type: String
+    Default: http://localhost:4173
   DiscordApplicationId:
     Type: String
     MinLength: 10
@@ -43,6 +46,7 @@ Globals:
         DISCORD_APPLICATION_ID: !Ref DiscordApplicationId
         DISCORD_PUBLIC_KEY: !Ref DiscordPublicKey
         FRONTEND_ORIGIN: !Ref AllowedOrigin
+        LOCAL_DEVELOPMENT_ORIGIN: !Ref LocalDevelopmentOrigin
         STAGE_NAME: !Ref StageName
         CORNELL_API_BASE: https://classes.cornell.edu/api/2.0
     Tags:
@@ -57,6 +61,7 @@ Resources:
       CorsConfiguration:
         AllowOrigins:
           - !Ref AllowedOrigin
+          - !Ref LocalDevelopmentOrigin
         AllowHeaders:
           - authorization
           - content-type

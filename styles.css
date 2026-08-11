@@ -1425,16 +1425,29 @@ input[type='text']:focus {
 /* Settings and onboarding sheet */
 
 .footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   text-align: left;
+}
+
+.footer-legal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  white-space: nowrap;
+}
+
+.footer-legal span {
+  color: var(--line-strong);
 }
 
 .footer-settings-btn {
   display: inline-flex;
   align-items: center;
+  justify-self: end;
   gap: 0.4rem;
   border: 0;
   border-bottom: 1px solid var(--line-strong);
@@ -2078,6 +2091,18 @@ input[type='text']:focus {
   }
 
   .footer {
+    grid-template-columns: minmax(0, 1fr) auto;
     border-radius: 0;
+  }
+
+  .footer-legal {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .footer-settings-btn {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

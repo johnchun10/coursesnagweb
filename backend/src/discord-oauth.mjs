@@ -11,6 +11,29 @@ const STATE_LIFETIME_SECONDS = 10 * 60;
 const ssm = new SSMClient({});
 let cachedClientSecret;
 
+function normalizedOrigin(value) {
+  try {
+    const origin = new URL(String(value || '')).origin;
+    return origin === 'null' ? '' : origin;
+  } catch {
+    return '';
+  }
+}
+
+export function resolveFrontendOrigin(requestedOrigin, strict = false) {
+  const fallback = normalizedOrigin(config.frontendOrigin);
+  const requested = normalizedOrigin(requestedOrigin);
+  const allowed = new Set([
+    fallback,
+    normalizedOrigin(config.localDevelopmentOrigin)
+  ].filter(Boolean));
+
+  if (!requestedOrigin) return fallback;
+  if (requested && allowed.has(requested)) return requested;
+  if (strict) throw new Error('Frontend origin is not allowed.');
+  return fallback;
+}
+
 async function clientSecret() {
   if (cachedClientSecret) return cachedClientSecret;
   requireConfig('discordClientSecretParameter');
@@ -98,11 +121,12 @@ export function publicDiscordIdentity(user) {
   };
 }
 
-export async function createDiscordAuthorization(redirectUri) {
+export async function createDiscordAuthorization(redirectUri, requestedReturnOrigin) {
   requireConfig('discordApplicationId', 'discordClientSecretParameter');
+  const returnOrigin = resolveFrontendOrigin(requestedReturnOrigin, true);
   await clientSecret();
   const state = randomBytes(32).toString('base64url');
-  await putDiscordOAuthState(state, STATE_LIFETIME_SECONDS);
+  await putDiscordOAuthState(state, STATE_LIFETIME_SECONDS, returnOrigin);
   return {
     authorizationUrl: buildDiscordAuthorizationUrl(state, redirectUri),
     expiresIn: STATE_LIFETIME_SECONDS
@@ -110,25 +134,30 @@ export async function createDiscordAuthorization(redirectUri) {
 }
 
 export async function cancelDiscordAuthorization(state) {
-  if (state) await consumeDiscordOAuthState(state);
+  return state ? consumeDiscordOAuthState(state) : null;
 }
 
 export async function completeDiscordAuthorization(code, state, redirectUri) {
   const pending = await consumeDiscordOAuthState(state);
   if (!pending) throw new Error('Discord authorization expired or was already used.');
-
-  const token = await discordFormRequest('/oauth2/token', {
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: redirectUri
-  });
-  if (!token?.access_token) throw new Error('Discord did not return an access token.');
-
   try {
-    return {
-      discord: publicDiscordIdentity(await discordUser(token.access_token))
-    };
-  } finally {
-    await revokeAccessToken(token.access_token);
+    const token = await discordFormRequest('/oauth2/token', {
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri
+    });
+    if (!token?.access_token) throw new Error('Discord did not return an access token.');
+
+    try {
+      return {
+        discord: publicDiscordIdentity(await discordUser(token.access_token)),
+        returnOrigin: resolveFrontendOrigin(pending.returnOrigin)
+      };
+    } finally {
+      await revokeAccessToken(token.access_token);
+    }
+  } catch (error) {
+    error.returnOrigin = resolveFrontendOrigin(pending.returnOrigin);
+    throw error;
   }
 }

@@ -18,6 +18,7 @@ set +a
 : "${STACK_NAME:=coursesnag-dev}"
 : "${STAGE_NAME:=dev}"
 : "${ALLOWED_ORIGIN:=https://coursesnag.pages.dev}"
+: "${LOCAL_DEVELOPMENT_ORIGIN:=http://localhost:4173}"
 : "${DISCORD_APPLICATION_ID:?DISCORD_APPLICATION_ID is required}"
 : "${DISCORD_PUBLIC_KEY:?DISCORD_PUBLIC_KEY is required}"
 : "${BUDGET_ALERT_EMAIL:?Add BUDGET_ALERT_EMAIL to infra/parameters.local.env before deployment}"
@@ -81,6 +82,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     StageName="$STAGE_NAME" \
     AllowedOrigin="$ALLOWED_ORIGIN" \
+    LocalDevelopmentOrigin="$LOCAL_DEVELOPMENT_ORIGIN" \
     DiscordApplicationId="$DISCORD_APPLICATION_ID" \
     DiscordPublicKey="$DISCORD_PUBLIC_KEY" \
     BudgetAlertEmail="$BUDGET_ALERT_EMAIL" \

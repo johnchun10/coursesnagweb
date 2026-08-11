@@ -2,7 +2,8 @@ import { config, requireConfig } from './config.mjs';
 import {
   cancelDiscordAuthorization,
   completeDiscordAuthorization,
-  createDiscordAuthorization
+  createDiscordAuthorization,
+  resolveFrontendOrigin
 } from './discord-oauth.mjs';
 import { normalizeTrackerInput, publicTracker } from './domain.mjs';
 import { sendDirectMessage } from './discord.mjs';
@@ -45,9 +46,9 @@ function discordRedirectUri(event) {
   return `https://${domainName}${stagePath}/discord/callback`;
 }
 
-function frontendReturn(status, values = {}) {
+function frontendReturn(status, values = {}, requestedOrigin = config.frontendOrigin) {
   requireConfig('frontendOrigin');
-  const destination = new URL(config.frontendOrigin);
+  const destination = new URL(resolveFrontendOrigin(requestedOrigin));
   destination.searchParams.set('discord', status);
   for (const [key, value] of Object.entries(values)) {
     if (value) destination.searchParams.set(key, value);
@@ -57,10 +58,12 @@ function frontendReturn(status, values = {}) {
 
 async function discordCallback(event) {
   const query = event.queryStringParameters || {};
+  let returnOrigin = config.frontendOrigin;
   try {
     if (query.error) {
-      await cancelDiscordAuthorization(query.state);
-      return redirect(frontendReturn('cancelled'));
+      const pending = await cancelDiscordAuthorization(query.state);
+      returnOrigin = pending?.returnOrigin || returnOrigin;
+      return redirect(frontendReturn('cancelled', {}, returnOrigin));
     }
     if (!query.code || !query.state) throw new Error('Discord callback is missing required values.');
     const completed = await completeDiscordAuthorization(
@@ -68,6 +71,7 @@ async function discordCallback(event) {
       query.state,
       discordRedirectUri(event)
     );
+    returnOrigin = completed.returnOrigin || returnOrigin;
     try {
       await sendDirectMessage({
         type: 'connection-confirmed',
@@ -79,14 +83,14 @@ async function discordCallback(event) {
         discordUserId: completed.discord.userId,
         message: error.message
       });
-      return redirect(frontendReturn('delivery-unavailable'));
+      return redirect(frontendReturn('delivery-unavailable', {}, returnOrigin));
     }
     const profile = await upsertDiscordProfile(completed.discord);
     const loginCode = await createLoginCode(profile.discordUserId);
-    return redirect(frontendReturn('connected', { code: loginCode }));
+    return redirect(frontendReturn('connected', { code: loginCode }, returnOrigin));
   } catch (error) {
     console.error('Discord callback failed', { message: error.message });
-    return redirect(frontendReturn('error'));
+    return redirect(frontendReturn('error', {}, error.returnOrigin || returnOrigin));
   }
 }
 
@@ -108,7 +112,8 @@ export async function handler(event) {
     }
 
     if (request.routeKey === 'POST /auth/discord') {
-      return json(200, await createDiscordAuthorization(discordRedirectUri(event)));
+      const { returnOrigin } = parseJsonBody(event);
+      return json(200, await createDiscordAuthorization(discordRedirectUri(event), returnOrigin));
     }
 
     if (request.routeKey === 'GET /discord/callback') {
@@ -169,7 +174,7 @@ export async function handler(event) {
       routeKey: request.routeKey,
       message: error.message
     });
-    const clientError = /Missing required field|unsupported characters|only digits|valid JSON|JSON object|login code is invalid|login expired/i.test(error.message);
+    const clientError = /Missing required field|unsupported characters|only digits|valid JSON|JSON object|login code is invalid|login expired|frontend origin is not allowed/i.test(error.message);
     return json(clientError ? 400 : 500, {
       error: clientError ? error.message : 'The CourseSnag service could not complete this request.'
     });

@@ -217,7 +217,10 @@
     setSyncStatus('Opening Discord authorization…', 'working');
 
     try {
-      const payload = await publicFetch('/auth/discord', { method: 'POST' });
+      const payload = await publicFetch('/auth/discord', {
+        method: 'POST',
+        body: JSON.stringify({ returnOrigin: window.location.origin })
+      });
       if (!payload?.authorizationUrl) throw new Error('Discord authorization could not be started.');
       window.location.assign(payload.authorizationUrl);
     } catch (error) {
