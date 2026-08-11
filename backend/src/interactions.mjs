@@ -1,7 +1,12 @@
 import { createPublicKey, verify } from 'node:crypto';
 import { config, requireConfig } from './config.mjs';
 import { currentMode } from './mode.mjs';
-import { acquireCommandRateLimit, getProfile, listTrackers } from './storage.mjs';
+import {
+  acquireCommandRateLimit,
+  getProfile,
+  listTrackers,
+  markUserActive
+} from './storage.mjs';
 
 const EPHEMERAL_MESSAGE_FLAG = 1 << 6;
 const TRACKED_COMMAND_COOLDOWN_SECONDS = 10;
@@ -80,8 +85,7 @@ function statusLabel(status) {
   return 'AWAITING CHECK';
 }
 
-export function trackedCoursesContent(trackers, { monitoringActive = true } = {}) {
-  if (!monitoringActive) return 'CourseSnag cloud tracking is currently **OFFLINE**.';
+export function trackedCoursesContent(trackers) {
   if (!trackers.length) return '**Tracked courses (0)**\nYour cloud watchlist is empty.';
 
   const ordered = [...trackers].sort((left, right) => [
@@ -135,6 +139,10 @@ export function unlinkedAccountPrompt() {
   };
 }
 
+export function unavailableCommandContent() {
+  return 'This CourseSnag command is currently unavailable.';
+}
+
 function ephemeral(content, components = []) {
   return response(200, {
     type: 4,
@@ -178,6 +186,9 @@ export async function handler(event) {
   if (!/^\d+$/.test(userId || '')) return ephemeral('Discord user information was unavailable.');
 
   try {
+    const mode = await currentMode();
+    if (mode !== 'cloud') return ephemeral(unavailableCommandContent());
+
     const allowed = await acquireCommandRateLimit(
       userId,
       'tracked',
@@ -193,11 +204,7 @@ export async function handler(event) {
       return ephemeral(prompt.content, prompt.components);
     }
 
-    const mode = await currentMode();
-    if (mode !== 'cloud') {
-      return ephemeral(trackedCoursesContent([], { monitoringActive: false }));
-    }
-
+    await markUserActive(userId);
     const trackers = await listTrackers(userId);
     return ephemeral(trackedCoursesContent(trackers));
   } catch (error) {

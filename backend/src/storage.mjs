@@ -32,6 +32,7 @@ export async function upsertDiscordProfile(discord) {
       'discordDisplayName = :displayName',
       'discordAvatar = :avatar',
       'discordConnectedAt = if_not_exists(discordConnectedAt, :now)',
+      'lastActiveAt = :now',
       'updatedAt = :now',
       'createdAt = if_not_exists(createdAt, :now)'
     ].join(', '),
@@ -56,6 +57,19 @@ export async function getProfile(userId) {
     ConsistentRead: true
   }));
   return result.Item || null;
+}
+
+export async function markUserActive(userId) {
+  requireConfig('tableName');
+  await documentClient.send(new UpdateCommand({
+    TableName: config.tableName,
+    Key: profileKey(userId),
+    UpdateExpression: 'SET lastActiveAt = :now',
+    ConditionExpression: 'attribute_exists(PK) AND attribute_exists(discordUserId)',
+    ExpressionAttributeValues: {
+      ':now': new Date().toISOString()
+    }
+  }));
 }
 
 export async function putDiscordOAuthState(state, lifetimeSeconds) {

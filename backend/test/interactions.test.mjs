@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
 import {
   trackedCoursesContent,
+  unavailableCommandContent,
   unlinkedAccountPrompt,
   verifyInteractionSignature
 } from '../src/interactions.mjs';
@@ -62,18 +63,10 @@ test('formats a private tracked-course summary', () => {
   assert.match(trackedCoursesContent([]), /cloud watchlist is empty/);
 });
 
-test('shows only offline status during Local Standby', () => {
-  const content = trackedCoursesContent([{
-    roster: 'FA26',
-    subject: 'CS',
-    catalogNbr: '2110',
-    section: '001',
-    classNbr: '12345',
-    lastStatus: 'O'
-  }], { monitoringActive: false });
-  assert.equal(content, 'CourseSnag cloud tracking is currently **OFFLINE**.');
-  assert.doesNotMatch(content, /Tracked courses/);
-  assert.doesNotMatch(content, /CS 2110/);
+test('uses a generic response for a command cached during shutdown', () => {
+  const content = unavailableCommandContent();
+  assert.match(content, /currently unavailable/);
+  assert.doesNotMatch(content, /OFFLINE/);
 });
 
 test('directs an unlinked Discord user to CourseSnag setup', () => {

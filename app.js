@@ -1535,6 +1535,9 @@
     renderAlertMode();
     showSettingsView(isOnboarding || !state.alertMode ? 'choice' : state.alertMode);
     if (!els.settingsDialog.open) els.settingsDialog.showModal();
+    if (!isOnboarding && state.alertMode === 'local') {
+      window.CourseSnagCloud?.refreshMode?.();
+    }
   }
 
   function closeSettings() {
@@ -1620,7 +1623,9 @@
       requestAnimationFrame(() => openSettings(true));
     }
     await window.CourseSnagCloud?.initialize({
-      replaceLocalTrackers
+      replaceLocalTrackers,
+      initialAlertMode: state.alertMode,
+      cloudSetupRequested: discordSetupRequested
     });
     if (discordSetupRequested) {
       setupParams.delete('setup');

@@ -155,6 +155,8 @@
   }
 
   async function fetchMode() {
+    state.mode = 'checking';
+    renderMode();
     try {
       const payload = await publicFetch('/mode');
       state.mode = payload.mode === 'cloud' ? 'cloud' : 'local';
@@ -205,18 +207,6 @@
     } finally {
       state.syncing = false;
       announceState();
-    }
-  }
-
-  async function restoreProfile() {
-    if (!state.sessionToken) return;
-    try {
-      const payload = await cloudFetch('/me');
-      state.profile = payload.profile;
-      renderAccount();
-    } catch (error) {
-      console.warn('Discord profile restoration failed:', error);
-      setSyncStatus(error.message, 'error');
     }
   }
 
@@ -348,11 +338,17 @@
     renderMode();
     renderAccount();
 
-    await fetchMode();
+    const shouldCheckMode = state.adapter?.initialAlertMode !== 'local'
+      || state.adapter?.cloudSetupRequested;
+    if (shouldCheckMode) {
+      await fetchMode();
+    } else {
+      state.mode = 'local';
+      renderMode();
+    }
     const handledReturn = await handleDiscordReturn();
-    if (!handledReturn && state.sessionToken) {
-      if (state.mode === 'cloud') await syncNow();
-      else await restoreProfile();
+    if (!handledReturn && state.sessionToken && state.mode === 'cloud') {
+      await syncNow();
     }
   }
 
@@ -361,6 +357,7 @@
     syncNow,
     trackerAdded,
     trackerRemoved,
+    refreshMode: fetchMode,
     getState: publicState
   };
 })();

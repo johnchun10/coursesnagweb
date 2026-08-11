@@ -1,6 +1,6 @@
 # CourseSnag cloud architecture
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Product model
 
@@ -55,7 +55,7 @@ Discord messages are generated when:
 - Cloud Active is manually placed into Local Standby for the off-season; or
 - Local Standby is manually returned to Cloud Active.
 
-Adding and removing trackers does not send Discord messages. During Cloud Active, the private `/tracked` command lists the caller's current cloud watchlist. During Local Standby, it returns only `CourseSnag cloud tracking is currently OFFLINE` and does not read or display the stale cloud watchlist. If the Discord identity is not linked, it returns a **Set up CourseSnag** link that opens the website's alert-mode onboarding. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read. Seasonal operations deduplicate legacy profile rows by Discord user ID and prefer the canonical Discord-owned profile.
+Adding and removing trackers does not send Discord messages. During Cloud Active, the private `/tracked` command lists the caller's current cloud watchlist. If the Discord identity is not linked, it returns a **Set up CourseSnag** link that opens the website's alert-mode onboarding. It has a ten-second per-user cooldown, while API Gateway also limits the Discord route to one request per second with a burst of three. Discord request signatures are validated before any account data is read. During Local Standby, `/tracked` is deleted from Discord and the interactions Lambda has zero concurrency, so there is no offline command response or stale watchlist access. Seasonal operations deduplicate legacy profile rows by Discord user ID and prefer the canonical Discord-owned profile.
 
 ## DynamoDB layout
 
@@ -85,11 +85,11 @@ The `GSI1` index lets one monitor invocation load every active tracker. Trackers
 ./scripts/season.sh status  # current mode and monitor state
 ```
 
-Local Standby does not delete AWS resources or account data. It disables scheduled monitoring while leaving the small on-demand API available for mode checks and future sign-in.
+Local Standby does not delete AWS resources or account data. It disables scheduled monitoring, removes `/tracked`, and sets both request-facing Lambdas—the website API and Discord interactions—to zero concurrency. Existing Local browsers skip routine AWS mode checks and recheck only when Settings is opened; browsers transitioning from Cloud make one failed availability check before saving Local mode.
 
-The seasonal command sends one OFFLINE DM when it changes from Cloud Active to Local Standby and one ONLINE DM when it changes back. It also sets a persistent `Status: OFFLINE` or `Status: ONLINE` line in the Discord application description. Repeating `start` or `stop` while already in that mode does not send another status DM, but it reasserts the correct description. Every real transition and recipient receives a unique queue identity, so rapid OFFLINE → ONLINE → OFFLINE testing is not suppressed by the FIFO queue's deduplication window.
+The seasonal command sends one OFFLINE DM when it changes from Cloud Active to Local Standby and one ONLINE DM when it changes back. It also sets persistent `Status: OFFLINE` or `Status: ONLINE` text on the same application-description line as the website link. Repeating `start` or `stop` while already in that mode does not send another status DM, but it reasserts the correct command, Lambda, and description state. Every real transition and recipient receives a unique queue identity, so rapid OFFLINE → ONLINE → OFFLINE testing is not suppressed by the FIFO queue's deduplication window.
 
-CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. This keeps the backend serverless, but Discord therefore shows the bot's presence dot as offline even during Cloud Active. The application-description status and latest seasonal DM are the durable user-facing indicators.
+CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. This keeps the backend serverless, but Discord therefore shows the bot's presence dot as offline even during Cloud Active. The application-description status and latest seasonal DM are the durable user-facing indicators; there is no additional OFFLINE command response.
 
 Discord OAuth is accepted only after CourseSnag successfully sends the connection-confirmation DM. A failure tells the user to join the shared CourseSnag server and allow direct messages before retrying, instead of creating an account that cannot receive alerts.
 
@@ -107,4 +107,5 @@ If a browser was previously set to Cloud and AWS reports Local Standby or cannot
 - The API is throttled, private website routes authenticate sessions in Lambda, and Discord commands require Ed25519 signatures plus per-user cooldowns.
 - The notifier does not need a continuously connected Discord Gateway process; it uses Discord's HTTP API only when a message is queued.
 - DynamoDB and Lambda are on demand, logs expire after seven days, and deployment artifacts expire after 30 days.
+- Local Standby prevents CourseSnag Lambda execution but retains data and infrastructure. DynamoDB/S3 storage and the CloudWatch dead-letter alarm can still incur small charges, so Local Standby is not an absolute zero-dollar state.
 - The annual AWS budget is USD 50. Budget alerts warn; they are not a hard cutoff.

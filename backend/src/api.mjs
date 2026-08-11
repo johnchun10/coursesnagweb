@@ -18,6 +18,7 @@ import {
   deleteTracker,
   getProfile,
   listTrackers,
+  markUserActive,
   putTracker,
   upsertDiscordProfile
 } from './storage.mjs';
@@ -125,6 +126,7 @@ export async function handler(event) {
 
     const session = await authenticateSession(event);
     if (!session) return json(401, { error: 'Discord sign-in is required.' });
+    await markUserActive(session.userId);
 
     if (request.routeKey === 'DELETE /session') {
       await revokeSession(session.tokenHash);

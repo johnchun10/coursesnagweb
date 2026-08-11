@@ -1,6 +1,6 @@
 # CourseSnag cloud roadmap
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 This is the durable project checkpoint. Read it with `docs/CLOUD_ARCHITECTURE.md` and `docs/OWNER_GUIDE.md` when resuming in a new session.
 
@@ -32,6 +32,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Automatic synchronization on load, refresh, add, and removal.
 - [x] Unique seasonal alert identities so rapid OFFLINE/ONLINE rehearsals are not deduplicated by SQS.
 - [x] Detailed owner status command with health, usage, queue, monitor, error, and budget summaries.
+- [x] Daily active users measured as unique linked users making authenticated cloud requests in the previous 24 hours.
 - [x] Persistent Discord application-description status synchronized by seasonal controls and deployments.
 - [x] Discord callback and encrypted bot/client credentials.
 - [x] Single-use OAuth state and immediate revocation of temporary Discord access tokens.
@@ -40,6 +41,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Discord messages implemented for connection confirmation, open, closed/waitlisted, and idempotent seasonal ONLINE/OFFLINE transitions; add/remove messages intentionally suppressed.
 - [x] API throttling enabled.
 - [x] Private `/tracked` Discord command with signature verification and a ten-second per-user cooldown.
+- [x] Remove `/tracked` and hard-disable the website and interaction Lambdas in Local Standby; restore them in Cloud Active.
 - [x] `/tracked` onboarding link for unlinked Discord users and unique linked-account operational counts.
 - [x] Remove obsolete Google-era profile rows after confirming they had no dependent records.
 - [x] Backend tests and CloudFormation validation passing.
@@ -79,7 +81,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Record and surface Cornell group-level monitor failures so a partial Cornell outage cannot look like a fully healthy Lambda run.
 - [x] Add an owner alarm for new dead-letter messages and define a safe inspect/delete workflow.
 - [x] Prevent transition races: no course alert should arrive after OFFLINE, and ONLINE should precede the first resumed course alert.
-- [x] Make `/tracked` return only OFFLINE, without stale course data, in Local Standby.
+- [x] Remove `/tracked` entirely in Local Standby so stale watchlists cannot be requested.
 
 ### Medium priority
 

@@ -66,7 +66,7 @@ show_status() {
   local account_id api_base_url table_name alert_queue_url dead_letter_queue_url
   local api_function monitor_function notifier_function interactions_function operations_function
   local api_health health_code health_seconds
-  local tracker_count account_json account_count queue_json pending in_flight delayed dead_letters
+  local tracker_count account_json account_count daily_active_users queue_json pending in_flight delayed dead_letters
   local monitor_json monitor_status monitor_completed monitor_checked monitor_groups monitor_failed_groups monitor_alerts
   local end_time start_time metric_queries metric_data
   local budget_json budget_limit actual_spend forecast_spend
@@ -85,10 +85,10 @@ show_status() {
   operations_function="$(stack_resource OperationsFunction)"
 
   case "$mode" in
-    cloud) mode_label="Cloud Active" ;;
-    starting) mode_label="Starting Cloud monitoring" ;;
-    stopping) mode_label="Stopping Cloud monitoring" ;;
-    *) mode_label="Local Standby" ;;
+    cloud) mode_label="ONLINE" ;;
+    starting) mode_label="STARTING" ;;
+    stopping) mode_label="STOPPING" ;;
+    *) mode_label="OFFLINE" ;;
   esac
   if [[ "$rule_state" == "ENABLED" ]]; then
     schedule_label="Enabled (once per minute)"
@@ -98,6 +98,13 @@ show_status() {
 
   api_health="$(curl --silent --show-error --max-time 8 --output /dev/null --write-out '%{http_code} %{time_total}' "$api_base_url/health" 2>/dev/null || true)"
   read -r health_code health_seconds <<<"$api_health"
+
+  end_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  if start_time="$(date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"; then
+    :
+  else
+    start_time="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
+  fi
 
   if ! tracker_count="$(aws dynamodb query \
     --table-name "$table_name" \
@@ -115,13 +122,15 @@ show_status() {
     --table-name "$table_name" \
     --filter-expression 'entityType = :profile AND attribute_exists(discordUserId)' \
     --expression-attribute-values '{":profile":{"S":"profile"}}' \
-    --projection-expression discordUserId \
+    --projection-expression 'discordUserId, lastActiveAt' \
     --output json \
     --region "$AWS_REGION" \
     --profile "$AWS_PROFILE" 2>/dev/null)"; then
     account_count="$(jq -r '[.Items[].discordUserId.S] | unique | length' <<<"$account_json")"
+    daily_active_users="$(jq -r --arg cutoff "$start_time" '[.Items[] | select((.lastActiveAt.S // "") >= $cutoff) | .discordUserId.S] | unique | length' <<<"$account_json")"
   else
     account_count="Unavailable"
+    daily_active_users="Unavailable"
   fi
 
   queue_json="$(aws sqs get-queue-attributes \
@@ -155,12 +164,6 @@ show_status() {
   monitor_failed_groups="$(jq -r '.Item.failedGroups.N // "0"' <<<"$monitor_json")"
   monitor_alerts="$(jq -r '.Item.alertsQueued.N // "0"' <<<"$monitor_json")"
 
-  end_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  if start_time="$(date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"; then
-    :
-  else
-    start_time="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
-  fi
   metric_queries="$(jq -nc \
     --arg api "$api_function" \
     --arg monitor "$monitor_function" \
@@ -209,12 +212,8 @@ show_status() {
 
   echo "CourseSnag status"
   echo
-  echo "Environment"
-  echo "  AWS account: $account_id"
-  echo "  Profile / region: $AWS_PROFILE / $AWS_REGION"
-  echo
-  echo "Season"
-  echo "  Mode: $mode_label"
+  echo "Monitoring"
+  echo "  Status: $mode_label"
   echo "  Monitor schedule: $schedule_label"
   if [[ "$health_code" == "200" ]]; then
     printf '  API: Healthy (HTTP 200, %.2fs)\n' "${health_seconds:-0}"
@@ -241,7 +240,8 @@ show_status() {
     echo "  Attention: Dead-lettered alerts require inspection; do not replay them blindly."
   fi
   echo
-  echo "Lambda activity (last 24 hours)"
+  echo "Metrics (last 24 hours)"
+  echo "  Daily active users: $daily_active_users"
   echo "  API:          $(metric_total "$metric_data" apiinv) invocations | $(metric_total "$metric_data" apierr) errors"
   echo "  Monitor:      $(metric_total "$metric_data" moninv) invocations | $(metric_total "$metric_data" monerr) errors"
   echo "  Notifier:     $(metric_total "$metric_data" notinv) invocations | $(metric_total "$metric_data" noterr) errors"
@@ -278,34 +278,51 @@ announce_season_status() {
   rm -f "$result_file"
 }
 
-set_discord_description_status() {
-  local status="$1"
-  local bot_token description request_body
+configure_discord() {
+  "$PROJECT_ROOT/scripts/configure-discord.sh" "$1"
+}
 
-  bot_token="$(aws ssm get-parameter \
-    --name "/coursesnag/${STAGE_NAME}/discord/bot-token" \
-    --with-decryption \
-    --query Parameter.Value \
-    --output text \
-    --region "$AWS_REGION" \
-    --profile "$AWS_PROFILE")"
-  description="$(printf 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev\n\nStatus: %s' "$status")"
-  request_body="$(jq -nc --arg description "$description" '{description: $description}')"
+set_function_enabled() {
+  local logical_id="$1"
+  local enabled="$2"
+  local function_name reserved_concurrency
+  function_name="$(stack_resource "$logical_id")"
 
-  curl -fsS \
-    -X PATCH \
-    -H "Authorization: Bot $bot_token" \
-    -H 'Content-Type: application/json' \
-    --data "$request_body" \
-    https://discord.com/api/v10/applications/@me >/dev/null
+  if [[ "$enabled" == "true" ]]; then
+    reserved_concurrency="$(aws lambda get-function-concurrency \
+      --function-name "$function_name" \
+      --query ReservedConcurrentExecutions \
+      --output text \
+      --region "$AWS_REGION" \
+      --profile "$AWS_PROFILE")"
+    if [[ "$reserved_concurrency" == "0" ]]; then
+      aws lambda delete-function-concurrency \
+        --function-name "$function_name" \
+        --region "$AWS_REGION" \
+        --profile "$AWS_PROFILE"
+    fi
+  else
+    aws lambda put-function-concurrency \
+      --function-name "$function_name" \
+      --reserved-concurrent-executions 0 \
+      --region "$AWS_REGION" \
+      --profile "$AWS_PROFILE" >/dev/null
+  fi
+}
+
+set_request_functions_enabled() {
+  local enabled="$1"
+  set_function_enabled ApiFunction "$enabled"
+  set_function_enabled InteractionsFunction "$enabled"
 }
 
 case "$ACTION" in
   start)
     PREVIOUS_MODE="$(current_mode)"
     if [[ "$PREVIOUS_MODE" == "cloud" ]]; then
-      set_discord_description_status ONLINE
-      echo "CourseSnag is already in Cloud Active mode. No Discord alert was sent; the application description confirms Status: ONLINE."
+      set_request_functions_enabled true
+      configure_discord online
+      echo "CourseSnag is already in Cloud Active mode. No Discord alert was sent; /tracked is available and the application description confirms Status: ONLINE."
       exit 0
     fi
     aws ssm put-parameter \
@@ -327,14 +344,16 @@ case "$ACTION" in
       --name "$RULE_NAME" \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE"
-    set_discord_description_status ONLINE
-    echo "CourseSnag is in Cloud Active mode. The shared monitor runs once per minute and the application description shows Status: ONLINE."
+    set_request_functions_enabled true
+    configure_discord online
+    echo "CourseSnag is in Cloud Active mode. The shared monitor runs once per minute, /tracked is available, and the application description shows Status: ONLINE."
     ;;
   stop)
     PREVIOUS_MODE="$(current_mode)"
     if [[ "$PREVIOUS_MODE" == "local" ]]; then
-      set_discord_description_status OFFLINE
-      echo "CourseSnag is already in Local Standby mode. No Discord alert was sent; the application description confirms Status: OFFLINE."
+      configure_discord offline
+      set_request_functions_enabled false
+      echo "CourseSnag is already in Local Standby mode. No Discord alert was sent; /tracked is unavailable and the application description confirms Status: OFFLINE."
       exit 0
     fi
     aws ssm put-parameter \
@@ -356,8 +375,9 @@ case "$ACTION" in
       --overwrite \
       --region "$AWS_REGION" \
       --profile "$AWS_PROFILE" >/dev/null
-    set_discord_description_status OFFLINE
-    echo "CourseSnag is in Local Standby mode. Scheduled AWS polling is disabled and the application description shows Status: OFFLINE."
+    configure_discord offline
+    set_request_functions_enabled false
+    echo "CourseSnag is in Local Standby mode. Scheduled AWS polling and /tracked are disabled, and the application description shows Status: OFFLINE."
     ;;
   status)
     show_status
