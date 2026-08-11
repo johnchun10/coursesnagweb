@@ -76,7 +76,7 @@ The helper intentionally uses port `4173`. Another port is blocked unless both t
 - Privacy Policy: `https://coursesnag.pages.dev/privacy.html`
 - Terms of Service: `https://coursesnag.pages.dev/terms.html`
 
-After the pages are live, add those exact URLs to the matching fields in the Discord Developer Portal's application settings. Review the policy text before opening CourseSnag beyond the current test group, especially the manual data-request contact route through the shared Discord server.
+Both URLs are configured in the Discord Developer Portal. As of August 11, 2026, the portal reports only team-owner identity verification as outstanding. That step can wait until formal app verification or scaling beyond 100 servers. Review the policy text before opening CourseSnag beyond the current test group, especially the manual data-request contact route through the shared Discord server.
 
 ## Seasonal operation
 
@@ -113,6 +113,6 @@ The caller ARN should contain an assumed SSO role, not `root`. Review CloudWatch
 
 ## Remaining production work
 
-- Configure the live Privacy and Terms URLs in Discord and review the policies before public use.
-- Verify notifier retry/dead-letter behavior.
+- Review the policies before public use.
+- Complete Discord team-owner identity verification before formal app verification or scaling beyond 100 servers.
 - Add local watchlist export/import.

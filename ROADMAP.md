@@ -57,6 +57,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Add the CourseSnag bot and cloud-alert users to a shared Discord server.
 - [x] Discord-only backend deployed to AWS.
 - [x] Publish the matching Discord-only frontend through Cloudflare Pages and verify the production UI.
+- [x] Publish and configure live Privacy Policy and Terms of Service URLs in Discord.
 - [x] Complete one real Discord sign-in and verify the connected `jochu` account in production.
 - [x] Deploy a confirmation DM after every successful Discord connection.
 - [x] Verify the confirmation DM after the bot and tester share a server.
@@ -72,10 +73,11 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Authorize an HTTP localhost origin in AWS CORS for local Cloud-mode UI testing; direct `file://` access remains Local-only.
 - [ ] Add export/import backup for local watchlists.
 - [x] Add Privacy Policy and Terms of Service pages.
-- [ ] Configure the production Privacy Policy and Terms URLs in Discord.
+- [x] Configure the production Privacy Policy and Terms URLs in Discord.
 - [ ] Review policies before public use.
-- [ ] Delete the seven stale pre-fix dead-letter messages after owner approval; do not replay them.
-- [ ] Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
+- [ ] Complete team-owner identity verification only when preparing for formal Discord app verification or scaling beyond 100 servers.
+- [x] Confirm the dead-letter queue is empty; no stale test messages remain.
+- [x] Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
 
 ## Edge-case backlog
 
