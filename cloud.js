@@ -74,7 +74,7 @@
     if (connected) {
       state.els.discordProfileName.textContent = discord?.displayName || 'Discord connected';
       state.els.discordProfileDetail.textContent = discord?.username
-        ? `@${discord.username} · Connected`
+        ? `@${discord.username}`
         : 'Discord is connected.';
     } else if (hasSession) {
       state.els.discordProfileName.textContent = 'Restoring Discord session';

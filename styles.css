@@ -1801,10 +1801,13 @@ input[type='text']:focus {
   line-height: 1.42;
 }
 
-.mode-detail-heading .cloud-requirement-warning {
-  border-left-color: var(--cornell);
-  background: var(--cornell-soft);
-  color: var(--cornell-deep);
+.mode-detail-heading .cloud-setup-instruction {
+  max-width: 68ch;
+  margin-top: 0.55rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink-muted);
 }
 
 .mode-detail-content {
@@ -1940,26 +1943,36 @@ input[type='text']:focus {
 }
 
 #cloud-settings-view .mode-detail-content {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.78fr) minmax(0, 1.22fr);
   margin-top: 0.75rem;
+  overflow: hidden;
+  padding: 0;
 }
 
 #cloud-settings-view .mode-detail-content .cloud-mode-block {
-  min-height: 54px;
-  padding-block: 0.6rem;
+  min-height: 124px;
+  align-content: center;
+  border: 0;
+  padding: 1rem;
 }
 
 .discord-cloud-account {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.68rem;
-  padding: 0.82rem 0 0.1rem;
+  justify-content: center;
+  gap: 0.58rem;
+  border-left: 1px solid var(--line);
+  padding: 1rem;
 }
 
 .cloud-account-body {
   display: flex;
   min-height: 54px;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .mode-detail-content .cloud-signin-wrap {
@@ -1972,7 +1985,7 @@ input[type='text']:focus {
 }
 
 .mode-detail-content .cloud-profile-copy {
-  max-width: min(420px, calc(100% - 44px));
+  max-width: min(250px, calc(100% - 44px));
 }
 
 .cloud-account-action {
@@ -1981,6 +1994,7 @@ input[type='text']:focus {
 
 .discord-account-actions {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
@@ -2002,7 +2016,7 @@ input[type='text']:focus {
 
 .mode-detail-content .cloud-sync-status {
   min-height: 1.2em;
-  margin-top: 0.85rem;
+  margin-top: 0;
   border: 0;
   padding: 0;
   font-size: 0.62rem;
@@ -2089,6 +2103,30 @@ input[type='text']:focus {
 
   .mode-detail-content {
     padding-inline: 0.82rem;
+  }
+
+  #cloud-settings-view .mode-detail-content {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  #cloud-settings-view .mode-detail-content .cloud-mode-block {
+    min-height: 70px;
+    border-bottom: 1px solid var(--line);
+    padding: 0.82rem;
+  }
+
+  .discord-cloud-account {
+    border-left: 0;
+    padding: 0.82rem;
+  }
+
+  .mode-detail-content .cloud-profile-copy {
+    max-width: min(250px, calc(100% - 44px));
+  }
+
+  .cloud-account-body {
+    flex-wrap: wrap;
   }
 
   .settings-sheet-footer {
