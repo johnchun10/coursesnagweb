@@ -92,7 +92,6 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Make `start`, `stop`, and deployment repair drift between the SSM mode, EventBridge, request Lambdas, and Discord command state.
 - [ ] Decide whether a temporary API/network failure should persistently switch a browser from Cloud to Local or only fall back for that session.
 - [ ] Handle missing Cornell sections and expired roster terms instead of leaving a tracker at a stale status indefinitely.
-- [ ] Add DynamoDB point-in-time recovery or another small-data backup strategy before public use.
 - [ ] Define and test the monitor's maximum roster/subject group count before its 55-second timeout requires batching.
 
 ## Owner commands
