@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CourseSnag | Cornell Course Tracker</title>
-  <meta name="description" content="Track Cornell class offerings and get instant alerts when seats open.">
+  <meta name="description" content="Track Cornell course sections and receive alerts when availability changes.">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-cornell-32.png?v=3">
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-cornell-16.png?v=3">
   <link rel="apple-touch-icon" href="favicon-cornell.png?v=3">
@@ -19,7 +19,7 @@
       <div class="header-meta">
         <div class="roster-display">
           <span class="meta-label">Roster</span>
-          <span id="roster-label">Loading roster...</span>
+          <span id="roster-label">Loading roster…</span>
         </div>
       </div>
 
@@ -37,22 +37,22 @@
     <main class="main">
       <section class="panel search-panel">
         <div class="panel-intro">
-          <h2>Find a class</h2>
+          <h2>Search classes</h2>
         </div>
 
         <div class="search-controls">
-          <label for="search-input" class="sr-only">Search classes</label>
+          <label for="search-input" class="sr-only">Search for classes</label>
           <input
             type="text"
             id="search-input"
-            placeholder="Try CS 2110, MATH, INFO 1300"
+            placeholder="Example: CS 2110, MATH, or INFO 1300"
             autocomplete="off"
             spellcheck="false"
           >
         </div>
 
-        <div class="quick-subjects" aria-label="Popular subject quick picks">
-          <span class="quick-subjects-label">Subjects</span>
+        <div class="quick-subjects" aria-label="Common subjects">
+          <span class="quick-subjects-label">Common subjects</span>
           <button type="button" class="quick-subject" data-action="set-subject" data-subject="CS">CS</button>
           <button type="button" class="quick-subject" data-action="set-subject" data-subject="INFO">INFO</button>
           <button type="button" class="quick-subject" data-action="set-subject" data-subject="MATH">MATH</button>
@@ -66,7 +66,7 @@
         <div id="search-status" class="status-message"></div>
 
         <div id="search-results" class="results-list">
-          <p class="empty-state">Enter a subject code to search (e.g. CS, MATH, INFO)</p>
+          <p class="empty-state">Enter a subject code, such as CS, MATH, or INFO.</p>
         </div>
       </section>
 
@@ -81,11 +81,11 @@
 
         <div id="tab-open-notice" class="tab-open-notice hidden" role="status" aria-live="polite">
           <span class="tab-open-indicator" aria-hidden="true"></span>
-          <span id="tab-open-notice-text">Local alerts require this tab.</span>
+          <span id="tab-open-notice-text">Keep this tab open for local alerts.</span>
         </div>
 
         <div id="tracked-list" class="tracked-list">
-          <p class="empty-state">No sections tracked yet</p>
+          <p class="empty-state">No sections are being tracked.</p>
         </div>
 
       </section>
@@ -103,9 +103,9 @@
   </div>
 
   <div id="alert-banner" class="alert-banner hidden">
-    <span id="alert-message">Section is now OPEN!</span>
+    <span id="alert-message">Section is open.</span>
     <div class="alert-actions">
-      <button id="dismiss-5min-btn" class="btn btn-small">Snooze 5m</button>
+      <button id="dismiss-5min-btn" class="btn btn-small">Snooze for 5 minutes</button>
       <button id="untrack-alert-btn" class="btn btn-small">Untrack</button>
     </div>
   </div>
@@ -132,7 +132,7 @@
                 </span>
               </span>
               <strong>Local</strong>
-              <span class="mode-choice-description">Tab needs to stay open and computer needs to stay on to receive alerts.</span>
+              <span class="mode-choice-description">Keep this tab open and the computer on to receive alerts.</span>
               <span class="mode-choice-bottomline">
                 <span class="mode-current-label" data-current-mode="local" hidden>Current mode</span>
                 <span class="mode-choice-action">Select</span>
@@ -148,8 +148,8 @@
                 </span>
               </span>
               <strong>Cloud</strong>
-              <span class="mode-choice-description">Cloud server monitors watchlist; computer can be off and you will be alerted through Discord.</span>
-              <span class="mode-requirement">Requires Discord + server access</span>
+              <span class="mode-choice-description">CourseSnag monitors the watchlist in the cloud and sends alerts through Discord.</span>
+              <span class="mode-requirement">Requires Discord and a server</span>
               <span class="mode-choice-bottomline">
                 <span class="mode-current-label" data-current-mode="cloud" hidden>Current mode</span>
                 <span id="cloud-option-action" class="mode-choice-action">Checking availability</span>
@@ -161,8 +161,8 @@
         <section id="local-settings-view" class="settings-view mode-detail-view" aria-labelledby="local-alerts-title" hidden>
           <div class="mode-detail-heading">
             <span>Local</span>
-            <h3 id="local-alerts-title">Local setup</h3>
-            <p>Alerts require this tab to remain open and your computer to remain on.</p>
+            <h3 id="local-alerts-title">Local settings</h3>
+            <p>Keep this tab open and the computer on to receive local alerts.</p>
           </div>
 
           <div class="mode-detail-content">
@@ -211,53 +211,33 @@
         <section id="cloud-settings-view" class="settings-view mode-detail-view" aria-labelledby="cloud-settings-title" hidden>
           <div class="mode-detail-heading">
             <span>Cloud</span>
-            <h3 id="cloud-settings-title">Cloud setup</h3>
-            <p class="cloud-requirement-warning"><strong>One Discord approval.</strong> Link your account and add CourseSnag to your server. Zero server permissions requested.</p>
+            <h3 id="cloud-settings-title">Cloud settings</h3>
+            <p class="cloud-requirement-warning">Connect Discord, select a server where you can add apps, and allow direct messages from server members.</p>
           </div>
 
           <div class="mode-detail-content">
             <div class="cloud-mode-block">
               <span id="cloud-mode-badge" class="cloud-mode-badge" data-mode="checking" aria-hidden="true"></span>
               <div class="cloud-mode-copy">
-                <strong id="cloud-mode-title">Checking status</strong>
-                <span id="cloud-mode-description">Checking monitoring</span>
+                <strong id="cloud-mode-title">Checking cloud status</strong>
+                <span id="cloud-mode-description">Checking monitoring status.</span>
               </div>
             </div>
 
             <section class="discord-cloud-account" aria-labelledby="discord-account-label">
               <span id="discord-account-label" class="settings-label">CourseSnag account</span>
 
-              <div id="discord-setup-flow" class="discord-setup-flow" data-stage="ready">
-                <div class="discord-flow-track" aria-hidden="true"><span></span></div>
-                <ol aria-label="Discord connection steps">
-                  <li>
-                    <span class="discord-flow-number" aria-hidden="true">1</span>
-                    <span><strong>Choose server</strong><small>Any server you can manage</small></span>
-                  </li>
-                  <li>
-                    <span class="discord-flow-number" aria-hidden="true">2</span>
-                    <span><strong>Approve Discord</strong><small>Account + bot in one screen</small></span>
-                  </li>
-                  <li>
-                    <span class="discord-flow-number" aria-hidden="true">3</span>
-                    <span><strong>DM confirmed</strong><small>Alerts are ready</small></span>
-                  </li>
-                </ol>
-              </div>
-
-              <p id="discord-server-note" class="discord-server-note">You need permission to add apps to the selected server. A private server works.</p>
-
               <div id="discord-profile" class="cloud-profile discord-profile">
                 <span class="discord-account-mark" aria-hidden="true">D</span>
                 <span class="cloud-profile-copy">
-                  <strong id="discord-profile-name">Not connected</strong>
-                  <span id="discord-profile-detail">Discord saves your watchlist and receives alerts</span>
+                  <strong id="discord-profile-name">Discord is not connected</strong>
+                  <span id="discord-profile-detail">Connect Discord to synchronize the cloud watchlist and receive alerts.</span>
                 </span>
               </div>
 
               <div class="discord-account-actions">
                 <button id="discord-connect-btn" class="btn btn-small btn-secondary cloud-account-action" type="button">
-                  Link Discord + add to server
+                  Connect Discord and add bot
                 </button>
                 <button id="cloud-signout-btn" class="btn btn-small btn-secondary cloud-account-action" type="button" hidden>
                   Sign out
@@ -271,7 +251,7 @@
       </div>
 
       <footer class="settings-sheet-footer">
-        <span id="settings-footer-note">Select a mode to continue</span>
+        <span id="settings-footer-note">Select a mode to continue.</span>
         <div class="settings-footer-actions">
           <button id="settings-switch-mode-btn" class="btn btn-secondary" type="button" hidden>Switch mode</button>
           <button id="settings-done-btn" class="btn btn-primary" type="button" disabled>Continue</button>

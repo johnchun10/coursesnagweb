@@ -12,7 +12,6 @@
     profile: null,
     syncing: false,
     discordBusy: false,
-    discordFlowStage: 'ready',
     initialized: false,
     adapter: null,
     els: {}
@@ -52,17 +51,17 @@
     state.els.modeBadge.dataset.mode = mode;
 
     if (mode === 'cloud') {
-      state.els.modeTitle.textContent = 'Cloud Active';
-      state.els.modeDescription.textContent = 'Monitoring enabled';
+      state.els.modeTitle.textContent = 'Cloud active';
+      state.els.modeDescription.textContent = 'Monitoring is enabled.';
     } else if (mode === 'unavailable') {
-      state.els.modeTitle.textContent = 'Unavailable';
-      state.els.modeDescription.textContent = 'Monitoring status unavailable';
+      state.els.modeTitle.textContent = 'Cloud unavailable';
+      state.els.modeDescription.textContent = 'Monitoring status is unavailable.';
     } else if (mode === 'checking') {
-      state.els.modeTitle.textContent = 'Checking status';
-      state.els.modeDescription.textContent = 'Checking monitoring';
+      state.els.modeTitle.textContent = 'Checking cloud status';
+      state.els.modeDescription.textContent = 'Checking monitoring status.';
     } else {
-      state.els.modeTitle.textContent = 'Local Standby';
-      state.els.modeDescription.textContent = 'Monitoring paused';
+      state.els.modeTitle.textContent = 'Cloud inactive';
+      state.els.modeDescription.textContent = 'Monitoring is paused.';
     }
     announceState();
   }
@@ -75,22 +74,14 @@
     if (connected) {
       state.els.discordProfileName.textContent = discord?.displayName || 'Discord connected';
       state.els.discordProfileDetail.textContent = discord?.username
-        ? `@${discord.username} · Cloud watchlist connected`
-        : 'Cloud watchlist connected';
+        ? `@${discord.username} · Connected`
+        : 'Discord is connected.';
     } else if (hasSession) {
-      state.els.discordProfileName.textContent = 'Checking account';
-      state.els.discordProfileDetail.textContent = 'Restoring your Discord session';
+      state.els.discordProfileName.textContent = 'Restoring Discord session';
+      state.els.discordProfileDetail.textContent = 'Checking the saved session.';
     } else {
-      state.els.discordProfileName.textContent = 'Not connected';
-      state.els.discordProfileDetail.textContent = 'Discord saves your watchlist and receives alerts';
-    }
-
-    if (state.els.discordSetupFlow) {
-      state.els.discordSetupFlow.hidden = connected && state.discordFlowStage !== 'connected';
-      state.els.discordSetupFlow.dataset.stage = state.discordFlowStage;
-    }
-    if (state.els.discordServerNote) {
-      state.els.discordServerNote.hidden = connected && state.discordFlowStage !== 'connected';
+      state.els.discordProfileName.textContent = 'Discord is not connected';
+      state.els.discordProfileDetail.textContent = 'Connect Discord to synchronize the cloud watchlist and receive alerts.';
     }
     if (state.els.discordProfile) {
       state.els.discordProfile.hidden = !hasSession;
@@ -98,7 +89,7 @@
     state.els.discordButton.hidden = hasSession;
     state.els.discordButton.textContent = state.discordBusy
       ? 'Opening Discord…'
-      : 'Link Discord + add to server';
+      : 'Connect Discord and add bot';
     state.els.discordButton.disabled = state.discordBusy;
     state.els.signOutButton.hidden = !hasSession;
     state.els.signOutButton.disabled = state.discordBusy;
@@ -140,7 +131,7 @@
     });
 
     if (authenticated && response.status === 401) {
-      clearSession('Discord session expired. Connect again.');
+      clearSession('The Discord session expired. Connect Discord again.');
       throw new Error('Discord session expired.');
     }
     if (!response.ok) {
@@ -224,7 +215,6 @@
   async function startDiscordSignIn() {
     if (state.discordBusy || state.sessionToken) return;
     state.discordBusy = true;
-    state.discordFlowStage = 'authorizing';
     renderAccount();
     setSyncStatus('Opening Discord authorization…', 'working');
 
@@ -233,13 +223,12 @@
         method: 'POST',
         body: JSON.stringify({ returnOrigin: window.location.origin })
       });
-      if (!payload?.authorizationUrl) throw new Error('Discord authorization could not be started.');
+      if (!payload?.authorizationUrl) throw new Error('Could not start Discord authorization.');
       window.location.assign(payload.authorizationUrl);
     } catch (error) {
       console.error('Discord sign-in failed:', error);
       setSyncStatus(error.message, 'error');
       state.discordBusy = false;
-      state.discordFlowStage = 'ready';
       renderAccount();
     }
   }
@@ -269,12 +258,11 @@
     window.history.replaceState({}, '', `${current.pathname}${current.search}${current.hash}`);
 
     let finalResult = result;
-    state.discordFlowStage = 'verifying';
     renderAccount();
     try {
       if (result === 'connected') {
         if (!code) throw new Error('Discord login response was incomplete.');
-        setSyncStatus('Finishing Discord sign-in…', 'working');
+        setSyncStatus('Completing Discord sign-in…', 'working');
         const payload = await publicFetch('/auth/session', {
           method: 'POST',
           body: JSON.stringify({ code })
@@ -284,29 +272,25 @@
         }
         state.sessionToken = payload.sessionToken;
         state.profile = payload.profile;
-        state.discordFlowStage = 'connected';
         localStorage.setItem(SESSION_KEY, payload.sessionToken);
         renderAccount();
         setSyncStatus('Discord connected. Loading your cloud watchlist…', 'success');
         await syncNow();
       } else if (result === 'cancelled') {
-        state.discordFlowStage = 'ready';
         renderAccount();
-        setSyncStatus('Discord sign-in cancelled.');
+        setSyncStatus('Discord sign-in was canceled.');
       } else if (result === 'delivery-unavailable') {
         finalResult = result;
-        state.discordFlowStage = 'failed';
         clearSession();
         setSyncStatus(
-          'CourseSnag joined your server, but Discord blocked the confirmation DM. Allow direct messages from server members, then try again.',
+          'Discord blocked the confirmation direct message. Enable direct messages from server members, and then try again.',
           'error'
         );
       } else {
-        throw new Error('Discord could not be connected. Try again.');
+        throw new Error('Could not connect Discord. Try again.');
       }
     } catch (error) {
       finalResult = 'error';
-      state.discordFlowStage = 'failed';
       clearSession();
       setSyncStatus(error.message, 'error');
     }
@@ -320,9 +304,9 @@
   async function trackerAdded(tracker) {
     if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
-      setSyncStatus('Saving tracker to your Discord account…', 'working');
+      setSyncStatus('Adding the section to the cloud watchlist…', 'working');
       await uploadTracker(tracker);
-      setSyncStatus(`Tracking ${tracker.subject} ${tracker.catalogNbr || tracker.classNbr} in the cloud.`, 'success');
+      setSyncStatus(`${tracker.subject} ${tracker.catalogNbr || tracker.classNbr} was added to the cloud watchlist.`, 'success');
     } catch (error) {
       setSyncStatus(error.message, 'error');
     }
@@ -332,9 +316,9 @@
     const id = trackerId(tracker);
     if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
-      setSyncStatus('Removing tracker from your Discord account…', 'working');
+      setSyncStatus('Removing the section from the cloud watchlist…', 'working');
       await deleteCloudTracker(id);
-      setSyncStatus('Tracker removed from this browser and the cloud.', 'success');
+      setSyncStatus('The section was removed from the browser and cloud watchlists.', 'success');
     } catch (error) {
       setSyncStatus(error.message, 'error');
     }
@@ -353,9 +337,7 @@
       discordProfileName: document.getElementById('discord-profile-name'),
       discordProfileDetail: document.getElementById('discord-profile-detail'),
       discordProfile: document.getElementById('discord-profile'),
-      discordButton: document.getElementById('discord-connect-btn'),
-      discordSetupFlow: document.getElementById('discord-setup-flow'),
-      discordServerNote: document.getElementById('discord-server-note')
+      discordButton: document.getElementById('discord-connect-btn')
     };
 
     state.els.signOutButton.addEventListener('click', signOut);

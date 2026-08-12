@@ -1956,146 +1956,6 @@ input[type='text']:focus {
   padding: 0.82rem 0 0.1rem;
 }
 
-.discord-setup-flow {
-  --flow-progress: 0%;
-  position: relative;
-  padding: 0.2rem 0.15rem 0;
-}
-
-.discord-setup-flow[data-stage='authorizing'] {
-  --flow-progress: 50%;
-}
-
-.discord-setup-flow[data-stage='verifying'],
-.discord-setup-flow[data-stage='connected'],
-.discord-setup-flow[data-stage='failed'] {
-  --flow-progress: 100%;
-}
-
-.discord-flow-track {
-  position: absolute;
-  z-index: 0;
-  top: 16px;
-  left: calc(16.666% + 12px);
-  width: calc(66.666% - 24px);
-  height: 1px;
-  overflow: hidden;
-  background: var(--line);
-}
-
-.discord-flow-track span {
-  display: block;
-  width: var(--flow-progress);
-  height: 100%;
-  background: var(--cornell);
-  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms ease;
-}
-
-.discord-setup-flow[data-stage='connected'] .discord-flow-track span {
-  background: var(--open);
-}
-
-.discord-setup-flow[data-stage='failed'] .discord-flow-track span {
-  background: var(--closed);
-}
-
-.discord-setup-flow ol {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  list-style: none;
-}
-
-.discord-setup-flow li {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.42rem;
-  color: var(--ink-muted);
-  text-align: center;
-}
-
-.discord-flow-number {
-  display: grid;
-  width: 25px;
-  height: 25px;
-  place-items: center;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: #fff;
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  font-weight: 600;
-  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, transform 180ms ease;
-}
-
-.discord-setup-flow li > span:last-child {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.08rem;
-}
-
-.discord-setup-flow li strong {
-  color: var(--ink);
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.discord-setup-flow li small {
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: 0.52rem;
-  line-height: 1.3;
-}
-
-.discord-setup-flow[data-stage='ready'] li:first-child .discord-flow-number,
-.discord-setup-flow[data-stage='authorizing'] li:nth-child(2) .discord-flow-number,
-.discord-setup-flow[data-stage='verifying'] li:nth-child(3) .discord-flow-number {
-  border-color: var(--cornell);
-  background: var(--cornell-soft);
-  color: var(--cornell);
-  animation: discord-step-pulse 1.4s ease-in-out infinite;
-}
-
-.discord-setup-flow[data-stage='authorizing'] li:first-child .discord-flow-number,
-.discord-setup-flow[data-stage='verifying'] li:nth-child(-n + 2) .discord-flow-number,
-.discord-setup-flow[data-stage='connected'] .discord-flow-number {
-  border-color: var(--open);
-  background: var(--open-soft);
-  color: var(--open);
-}
-
-.discord-setup-flow[data-stage='failed'] li:nth-child(-n + 2) .discord-flow-number {
-  border-color: var(--open);
-  background: var(--open-soft);
-  color: var(--open);
-}
-
-.discord-setup-flow[data-stage='failed'] li:nth-child(3) .discord-flow-number {
-  border-color: var(--closed);
-  background: var(--closed-soft);
-  color: var(--closed);
-}
-
-@keyframes discord-step-pulse {
-  50% {
-    transform: scale(1.08);
-    box-shadow: 0 0 0 4px rgba(179, 27, 27, 0.09);
-  }
-}
-
-.discord-server-note {
-  margin: -0.12rem 0 0;
-  color: var(--ink-muted);
-  font-size: 0.66rem;
-  line-height: 1.4;
-  text-align: center;
-}
-
 .cloud-account-body {
   display: flex;
   min-height: 54px;
@@ -2231,10 +2091,6 @@ input[type='text']:focus {
     padding-inline: 0.82rem;
   }
 
-  .discord-setup-flow li small {
-    max-width: 16ch;
-  }
-
   .settings-sheet-footer {
     padding: 0.7rem 1rem;
   }
@@ -2262,16 +2118,5 @@ input[type='text']:focus {
   .footer-settings-btn {
     grid-column: 2;
     grid-row: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .discord-flow-track span,
-  .discord-flow-number {
-    transition: none;
-  }
-
-  .discord-setup-flow .discord-flow-number {
-    animation: none !important;
   }
 }

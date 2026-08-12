@@ -233,7 +233,7 @@
   function updateNotifyStatus() {
     if (!hasNotificationSupport()) {
       els.notifyStatus.textContent = isMobileBrowser()
-        ? '(Disabled on mobile)'
+        ? '(Unavailable on mobile)'
         : '(Not supported)';
       els.notifyStatus.className = 'notify-status denied';
       els.notifyToggle.disabled = true;
@@ -252,7 +252,7 @@
       els.notifyStatus.textContent = '(Blocked)';
       els.notifyStatus.className = 'notify-status denied';
     } else {
-      els.notifyStatus.textContent = '(Click to enable)';
+      els.notifyStatus.textContent = '(Select to enable)';
       els.notifyStatus.className = 'notify-status';
     }
   }
@@ -281,7 +281,7 @@
     try {
       new Notification(title, {
         body,
-        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎉</text></svg>',
+        icon: 'favicon-cornell-32.png?v=3',
         tag: 'coursesnag-alert',
         requireInteraction: true
       });
@@ -331,9 +331,9 @@
       const names = actionableSections
         .map(s => `${s.subject} ${s.catalogNbr}`);
       const message = names.length === 1
-        ? `${names[0]} is now OPEN!`
-        : `${names.length} sections are now OPEN!`;
-      showNotification('CourseSnag Alert', message);
+        ? `${names[0]} is open.`
+        : `${names.length} sections are open.`;
+      showNotification('CourseSnag alert', message);
     }
   }
 
@@ -561,7 +561,7 @@
 
     if (state.isSearching) {
       setEmptyState(true);
-      els.searchResults.innerHTML = '<p class="empty-state"><span class="spinner"></span>Searching...</p>';
+      els.searchResults.innerHTML = '<p class="empty-state"><span class="spinner"></span>Searching…</p>';
       return;
     }
 
@@ -576,13 +576,13 @@
     const parsed = parseSearchInput(els.searchInput.value);
     if (!parsed) {
       setEmptyState(true);
-      els.searchResults.innerHTML = '<p class="empty-state">Enter a subject code to search (e.g. CS, MATH, INFO)</p>';
+      els.searchResults.innerHTML = '<p class="empty-state">Enter a subject code, such as CS, MATH, or INFO.</p>';
       return;
     }
 
     if (state.searchResults.length === 0) {
       setEmptyState(true);
-      els.searchResults.innerHTML = '<p class="empty-state">No classes found</p>';
+      els.searchResults.innerHTML = '<p class="empty-state">No classes found.</p>';
       return;
     }
 
@@ -600,7 +600,7 @@
         <div class="course-card ${isExpanded ? 'expanded' : ''}" data-course-id="${escapeAttr(courseId)}">
           <div class="course-header" data-action="toggle-course" data-course-id="${escapeAttr(courseId)}">
             <div class="course-header-info">
-              <div class="course-title">${escapeHtml(course.titleShort || course.titleLong || 'Untitled')}</div>
+              <div class="course-title">${escapeHtml(course.titleShort || course.titleLong || 'Untitled course')}</div>
               <div class="course-code">${course.subject} ${course.catalogNbr} (${sections.length} section${sections.length !== 1 ? 's' : ''})</div>
             </div>
             <span class="course-toggle">▼</span>
@@ -612,7 +612,7 @@
       `;
     }
 
-    els.searchResults.innerHTML = html || '<p class="empty-state">No sections found</p>';
+    els.searchResults.innerHTML = html || '<p class="empty-state">No sections found.</p>';
   }
 
   function extractSections(course) {
@@ -671,7 +671,7 @@
     updateTabOpenNotice();
 
     if (state.trackedSections.length === 0) {
-      els.trackedList.innerHTML = '<p class="empty-state">No sections tracked yet</p>';
+      els.trackedList.innerHTML = '<p class="empty-state">No sections are being tracked.</p>';
       return;
     }
 
@@ -720,22 +720,22 @@
     const cloudState = window.CourseSnagCloud?.getState();
     if (state.alertMode === 'cloud' && (!cloudState || cloudState.mode === 'checking')) {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Checking cloud status.';
+      els.tabOpenNoticeText.textContent = 'Checking Cloud mode status.';
     } else if (state.alertMode === 'cloud' && cloudState?.mode !== 'cloud') {
       els.tabOpenNotice.dataset.mode = 'unavailable';
-      els.tabOpenNoticeText.textContent = 'Cloud unavailable.';
+      els.tabOpenNoticeText.textContent = 'Cloud mode is unavailable.';
     } else if (state.alertMode === 'cloud' && cloudState?.signedIn) {
       els.tabOpenNotice.dataset.mode = 'cloud';
-      els.tabOpenNoticeText.textContent = 'Cloud alerts active.';
+      els.tabOpenNoticeText.textContent = 'Cloud alerts are enabled.';
     } else if (state.alertMode === 'cloud') {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Cloud setup incomplete.';
+      els.tabOpenNoticeText.textContent = 'Connect Discord to enable cloud alerts.';
     } else if (!state.alertMode) {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Choose an alert mode.';
+      els.tabOpenNoticeText.textContent = 'Select an alert mode.';
     } else {
       els.tabOpenNotice.dataset.mode = 'local';
-      els.tabOpenNoticeText.textContent = 'Local alerts require this tab.';
+      els.tabOpenNoticeText.textContent = 'Keep this tab open for local alerts.';
     }
     els.tabOpenNotice.classList.remove('hidden');
   }
@@ -896,10 +896,12 @@
       state.searchResults = state.cachedClasses.filter(course =>
         course.catalogNbr.startsWith(parsed.query)
       );
-      setSearchStatus(`Showing ${state.searchResults.length} result(s) for ${parsed.subject} ${parsed.query}`);
+      const resultLabel = state.searchResults.length === 1 ? 'result' : 'results';
+      setSearchStatus(`Found ${state.searchResults.length} ${resultLabel} for ${parsed.subject} ${parsed.query}.`);
     } else {
       state.searchResults = state.cachedClasses;
-      setSearchStatus(`Showing ${state.searchResults.length} class(es) in ${parsed.subject}`);
+      const classLabel = state.searchResults.length === 1 ? 'class' : 'classes';
+      setSearchStatus(`Found ${state.searchResults.length} ${classLabel} in ${parsed.subject}.`);
     }
 
     // Auto-expand if only 1 result
@@ -1284,7 +1286,7 @@
     if (state.isRefreshing) return;
 
     els.refreshBtn.disabled = true;
-    els.refreshBtn.textContent = 'Refreshing...';
+    els.refreshBtn.textContent = 'Refreshing…';
 
     try {
       const refreshes = [
@@ -1345,27 +1347,27 @@
       // Request permission first if not yet granted
       const granted = await requestNotificationPermission();
       if (!granted) {
-        alert('Notification permission denied. Please enable in browser settings.');
+        alert('Notification permission was denied. Enable notifications in the browser settings.');
         return;
       }
     }
 
     if (Notification.permission !== 'granted') {
-      alert('Notifications are blocked. Please enable in your browser settings.');
+      alert('Notifications are blocked. Enable notifications in the browser settings.');
       return;
     }
 
     try {
       // Show notification directly (bypassing state.notifyEnabled check for testing)
-      new Notification('CourseSnag Test', {
-        body: 'This is a test notification!',
-        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎉</text></svg>',
+      new Notification('CourseSnag test', {
+        body: 'Browser notifications are enabled.',
+        icon: 'favicon-cornell-32.png?v=3',
         tag: 'coursesnag-test',
         requireInteraction: true
       });
     } catch (err) {
       console.error('Error showing notification:', err);
-      alert('Failed to show notification: ' + err.message);
+      alert('Could not show the notification: ' + err.message);
     }
   }
 
@@ -1473,15 +1475,15 @@
     els.settingsDoneButton.textContent = isChoice
       ? 'Continue'
       : cloudNeedsDiscord
-        ? 'Connect Discord first'
+        ? 'Connect Discord'
         : els.settingsDialog.dataset.onboarding === 'true' ? 'Finish setup' : 'Done';
     els.settingsDoneButton.disabled = (isChoice && !state.pendingAlertMode) || cloudNeedsDiscord;
     els.settingsSwitchModeButton.hidden = isChoice;
     els.settingsFooterNote.textContent = isChoice
-      ? 'Select a mode to continue'
+      ? 'Select a mode to continue.'
       : cloudNeedsDiscord
-        ? 'Complete the Discord setup above'
-        : 'Changes save automatically';
+        ? 'Connect Discord to continue.'
+        : 'Changes are saved automatically.';
 
     if (!isChoice) {
       const switchingToCloud = state.alertMode !== 'cloud';
@@ -1501,7 +1503,7 @@
     els.cloudSettingsView.hidden = view !== 'cloud';
 
     if (isChoice) {
-      els.settingsEyebrow.textContent = els.settingsDialog.dataset.onboarding === 'true' ? 'First setup' : 'Preferences';
+      els.settingsEyebrow.textContent = els.settingsDialog.dataset.onboarding === 'true' ? 'Setup' : 'Preferences';
       els.settingsTitle.textContent = 'Choose alert mode';
     } else {
       const label = view === 'cloud' ? 'Cloud' : 'Local';

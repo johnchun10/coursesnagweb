@@ -49,7 +49,7 @@ Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub pu
 
 1. Run `./scripts/season.sh start`.
 2. Open `https://coursesnag.pages.dev` and select Cloud.
-3. Select **Link Discord + add to server**.
+3. Select **Connect Discord and add bot**.
 4. In the single Discord screen, select a server the tester manages and approve identity plus bot installation.
 5. Confirm Settings displays the Discord account and Discord receives the connection confirmation.
 6. Add a section and confirm it remains after a page refresh.
