@@ -59,6 +59,8 @@ Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub pu
 
 While signed in, browser changes are saved to AWS. Signing out leaves the browser list intact. Signing in on any device replaces that browser's list with the Discord account's AWS watchlist; browser-only trackers are not merged or uploaded during sign-in.
 
+CourseSnag automatically follows the roster Cornell marks as current. When Cornell advances to a new term, old-term trackers are removed from browsers when the site loads and from AWS on the next active monitor run. A section that disappears from a successful current-roster response is removed as well. Cleanup does not send a Discord message. If Cornell is unavailable or returns an error, CourseSnag keeps the trackers and reports degraded monitoring rather than treating uncertain data as removal.
+
 ## Local Cloud-mode development
 
 Direct `file://` pages have an opaque origin and remain Local-only. The deployed API authorizes exactly the production site and `http://localhost:4173`. Start the local site with:

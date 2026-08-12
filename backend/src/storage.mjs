@@ -322,6 +322,7 @@ export async function putMonitorRunStatus(summary) {
       alertsQueued: Number(summary.alertsQueued || 0),
       groups: Number(summary.groups || 0),
       failedGroups: Number(summary.failedGroups || 0),
+      removed: Number(summary.removed || 0),
       completedAt: summary.completedAt
     }
   }));

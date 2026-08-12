@@ -11,6 +11,8 @@ CourseSnag has two manually selected operating modes:
 
 Cloudflare hosts the frontend at `https://coursesnag.pages.dev`. AWS hosts only the API, account/watchlist records, monitor, queue, and notification workers.
 
+The public site and Local mode require no CourseSnag account. Anonymous Local visitors are not included in AWS linked-account or daily-active-user counts. Cloud mode requires a linked Discord identity.
+
 ## Account and authorization flow
 
 Discord is the only CourseSnag account provider and alert destination.
@@ -96,6 +98,8 @@ CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. 
 Discord OAuth is accepted only after CourseSnag successfully sends the connection-confirmation DM. A failure tells the user to join the shared CourseSnag server and allow direct messages before retrying, instead of creating an account that cannot receive alerts.
 
 Course notifications are re-checked against the live mode by the notifier. Transitional `starting` and `stopping` states keep the scheduled monitor gated while ONLINE/OFFLINE messages are ordered. Cornell roster/subject failures are counted in the persisted monitor result and shown as degraded status. A CloudWatch alarm emails the owner when any message enters the dead-letter queue.
+
+The website and cloud monitor read Cornell's default-roster setting instead of relying on a manually maintained semester. Trackers tied to another roster are removed automatically. If Cornell successfully returns the current subject but a tracked section is absent, that tracker is also removed. These cleanup removals do not send Discord alerts. When Cornell's roster or subject request fails, CourseSnag records degraded health and retains the trackers because absence has not been confirmed.
 
 If a browser was previously set to Cloud and AWS reports Local Standby or cannot be reached, the website automatically changes that browser to Local mode. The Cloud choice remains unavailable until Cloud Active returns.
 

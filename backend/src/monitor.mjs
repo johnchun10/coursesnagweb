@@ -1,9 +1,10 @@
-import { buildStatusIndex, fetchSubjectClasses, wait } from './cornell.mjs';
+import { buildStatusIndex, fetchCurrentRoster, fetchSubjectClasses, wait } from './cornell.mjs';
 import { randomUUID } from 'node:crypto';
 import { availabilityEventForTransition, groupTrackersByRosterSubject } from './domain.mjs';
 import { currentMode } from './mode.mjs';
 import { sendAlertMessages } from './queue.mjs';
 import {
+  deleteTracker,
   getProfiles,
   listAllActiveTrackers,
   putMonitorRunStatus,
@@ -24,6 +25,15 @@ export function monitorStatusForFailures(failedGroups) {
   return Number(failedGroups || 0) > 0 ? 'degraded' : 'ok';
 }
 
+export function partitionTrackersForRoster(trackers, currentRoster) {
+  const current = [];
+  const expired = [];
+  for (const tracker of trackers) {
+    (tracker.roster === currentRoster ? current : expired).push(tracker);
+  }
+  return { current, expired };
+}
+
 export async function handler() {
   if (await currentMode() !== 'cloud') {
     return completeMonitorRun({
@@ -35,7 +45,7 @@ export async function handler() {
     });
   }
 
-  const trackers = await listAllActiveTrackers();
+  let trackers = await listAllActiveTrackers();
   if (!trackers.length) {
     return completeMonitorRun({
       status: 'ok',
@@ -43,6 +53,39 @@ export async function handler() {
       alertsQueued: 0,
       groups: 0,
       failedGroups: 0
+    });
+  }
+
+  let currentRoster;
+  try {
+    currentRoster = await fetchCurrentRoster();
+  } catch (error) {
+    console.error('Cornell current-roster check failed', { message: error.message });
+    return completeMonitorRun({
+      status: 'degraded',
+      checked: 0,
+      alertsQueued: 0,
+      groups: 0,
+      failedGroups: 1,
+      removed: 0
+    });
+  }
+
+  const rosterTrackers = partitionTrackersForRoster(trackers, currentRoster);
+  for (const tracker of rosterTrackers.expired) {
+    await deleteTracker(tracker.userId, tracker.trackerId);
+  }
+  let removed = rosterTrackers.expired.length;
+  trackers = rosterTrackers.current;
+
+  if (!trackers.length) {
+    return completeMonitorRun({
+      status: 'ok',
+      checked: 0,
+      alertsQueued: 0,
+      groups: 0,
+      failedGroups: 0,
+      removed
     });
   }
 
@@ -64,7 +107,11 @@ export async function handler() {
 
       for (const tracker of group.trackers) {
         const newStatus = statuses.get(String(tracker.classNbr));
-        if (newStatus === undefined) continue;
+        if (newStatus === undefined) {
+          await deleteTracker(tracker.userId, tracker.trackerId);
+          removed += 1;
+          continue;
+        }
 
         const notificationType = availabilityEventForTransition(tracker.lastStatus, newStatus);
         if (notificationType) {
@@ -89,7 +136,8 @@ export async function handler() {
       checked,
       alertsQueued: 0,
       groups: groups.size,
-      failedGroups
+      failedGroups,
+      removed
     });
   }
 
@@ -130,7 +178,8 @@ export async function handler() {
     checked,
     alertsQueued,
     groups: groups.size,
-    failedGroups
+    failedGroups,
+    removed
   };
   return completeMonitorRun(summary);
 }

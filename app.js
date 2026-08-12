@@ -805,6 +805,10 @@
       const defaultRoster = state.rosters.find(r => r.isDefaultRoster === 'Y');
       state.currentRoster = defaultRoster ? defaultRoster.slug : state.rosters[0]?.slug;
 
+      if (state.currentRoster) {
+        removeTrackedSections(item => item.roster !== state.currentRoster);
+      }
+
       renderRosterLabel();
 
       if (state.currentRoster) {
@@ -974,6 +978,34 @@
     return `${tracker.roster}:${String(tracker.classNbr)}`;
   }
 
+  function removeTrackedSections(shouldRemove) {
+    const removed = [];
+    state.trackedSections = state.trackedSections.filter(tracker => {
+      if (!shouldRemove(tracker)) return true;
+      removed.push(tracker);
+      return false;
+    });
+    if (!removed.length) return [];
+
+    for (const tracker of removed) {
+      const key = trackerKey(tracker);
+      state.trackedKeySet.delete(key);
+      dismissedAlerts.delete(key);
+      document.getElementById(`alert-${key}`)?.remove();
+    }
+
+    saveDismissedAlerts();
+    saveTrackedSections();
+    renderTrackedList();
+    renderSearchResults();
+    if (!hasActiveUndismissedOpenAlerts()) stopAlertSound();
+
+    for (const tracker of removed) {
+      void window.CourseSnagCloud?.trackerRemoved(tracker);
+    }
+    return removed;
+  }
+
   function replaceLocalTrackers(cloudTrackers) {
     const replacement = [];
     const replacementKeys = new Set();
@@ -1009,6 +1041,9 @@
     renderTrackedList();
     renderSearchResults();
     if (!hasActiveUndismissedOpenAlerts()) stopAlertSound();
+    if (state.currentRoster) {
+      removeTrackedSections(item => item.roster !== state.currentRoster);
+    }
   }
 
   function toggleTrack(classNbr, subject, catalogNbr, title, section, ssrComponent, openStatus, classTime = '') {
@@ -1047,42 +1082,9 @@
 
   function untrack(classNbr, roster = null) {
     const classNbrStr = String(classNbr);
-    const removed = [];
-    state.trackedSections = state.trackedSections.filter(t => {
-      const matchesClassNbr = t.classNbr === classNbrStr;
-      const matchesRoster = !roster || t.roster === roster;
-      if (matchesClassNbr && matchesRoster) {
-        removed.push(t);
-        return false;
-      }
-      return true;
-    });
-    for (const tracker of removed) {
-      const key = trackerKey(tracker);
-      state.trackedKeySet.delete(key);
-      // Clear any dismissed alerts for this class so it can alert again if re-tracked
-      if (dismissedAlerts.has(key)) {
-        dismissedAlerts.delete(key);
-        saveDismissedAlerts();
-      }
-      // Remove alert overlay for this class
-      const alertElement = document.getElementById(`alert-${key}`);
-      if (alertElement) {
-        alertElement.remove();
-      }
-    }
-
-    // Stop alert sound if it's playing (no more tracked open sections with active alerts)
-    if (!hasActiveUndismissedOpenAlerts()) {
-      stopAlertSound();
-    }
-
-    saveTrackedSections();
-    renderTrackedList();
-    renderSearchResults(); // Update track buttons
-    for (const tracker of removed) {
-      void window.CourseSnagCloud?.trackerRemoved(tracker);
-    }
+    removeTrackedSections(tracker => (
+      tracker.classNbr === classNbrStr && (!roster || tracker.roster === roster)
+    ));
   }
 
   // ============================================
@@ -1109,6 +1111,7 @@
     }
 
     const newlyOpened = [];
+    const missingTrackerKeys = new Set();
 
     try {
       for (const group of Object.values(groups)) {
@@ -1126,6 +1129,7 @@
         for (const item of group.items) {
           const newStatus = statusIndex.get(item.classNbr);
           if (newStatus === undefined) {
+            missingTrackerKeys.add(trackerKey(item));
             continue;
           }
 
@@ -1140,6 +1144,8 @@
           item.lastCheckedAt = new Date().toISOString();
         }
       }
+
+      removeTrackedSections(item => missingTrackerKeys.has(trackerKey(item)));
 
       saveTrackedSections();
       renderTrackedList();

@@ -1,10 +1,10 @@
 import { config } from './config.mjs';
 
-export async function fetchSubjectClasses(roster, subject, fetchImpl = fetch) {
-  const url = new URL(`${config.cornellApiBase}/search/classes.json`);
-  url.searchParams.set('roster', roster);
-  url.searchParams.set('subject', subject);
-  url.searchParams.set('_', String(Date.now()));
+async function cornellJson(path, searchParams, fetchImpl) {
+  const url = new URL(`${config.cornellApiBase}${path}`);
+  for (const [key, value] of Object.entries(searchParams)) {
+    url.searchParams.set(key, value);
+  }
 
   const response = await fetchImpl(url, {
     headers: { 'user-agent': 'CourseSnag/0.1 (course availability monitor)' },
@@ -17,7 +17,29 @@ export async function fetchSubjectClasses(roster, subject, fetchImpl = fetch) {
   if (payload.status !== 'success') {
     throw new Error(payload.message || 'Cornell API returned an error status');
   }
-  return payload.data?.classes || [];
+  return payload.data || {};
+}
+
+export function defaultRosterSlug(rosters) {
+  const rosterList = Array.isArray(rosters) ? rosters : [];
+  const current = rosterList.find(roster => roster?.isDefaultRoster === 'Y') || rosterList[0];
+  return current?.slug ? String(current.slug) : '';
+}
+
+export async function fetchCurrentRoster(fetchImpl = fetch) {
+  const data = await cornellJson('/config/rosters.json', {}, fetchImpl);
+  const roster = defaultRosterSlug(data.rosters);
+  if (!roster) throw new Error('Cornell did not identify a current roster.');
+  return roster;
+}
+
+export async function fetchSubjectClasses(roster, subject, fetchImpl = fetch) {
+  const data = await cornellJson('/search/classes.json', {
+    roster,
+    subject,
+    _: String(Date.now())
+  }, fetchImpl);
+  return data.classes || [];
 }
 
 export function buildStatusIndex(classes) {

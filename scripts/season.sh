@@ -67,7 +67,7 @@ show_status() {
   local api_function monitor_function notifier_function interactions_function operations_function
   local api_health health_code health_seconds
   local tracker_count account_json account_count daily_active_users queue_json pending in_flight delayed dead_letters
-  local monitor_json monitor_status monitor_completed monitor_checked monitor_groups monitor_failed_groups monitor_alerts
+  local monitor_json monitor_status monitor_completed monitor_checked monitor_groups monitor_failed_groups monitor_alerts monitor_removed
   local end_time start_time metric_queries metric_data
   local budget_json budget_limit actual_spend forecast_spend
 
@@ -163,6 +163,7 @@ show_status() {
   monitor_groups="$(jq -r '.Item.groups.N // "0"' <<<"$monitor_json")"
   monitor_failed_groups="$(jq -r '.Item.failedGroups.N // "0"' <<<"$monitor_json")"
   monitor_alerts="$(jq -r '.Item.alertsQueued.N // "0"' <<<"$monitor_json")"
+  monitor_removed="$(jq -r '.Item.removed.N // "0"' <<<"$monitor_json")"
 
   metric_queries="$(jq -nc \
     --arg api "$api_function" \
@@ -226,7 +227,7 @@ show_status() {
   echo "  Active trackers: $tracker_count"
   if [[ -n "$monitor_completed" ]]; then
     echo "  Last monitor run: $monitor_completed"
-    echo "    Status: $monitor_status | Checked: $monitor_checked | Groups: $monitor_groups | Failed groups: $monitor_failed_groups | Alerts queued: $monitor_alerts"
+    echo "    Status: $monitor_status | Checked: $monitor_checked | Groups: $monitor_groups | Failed groups: $monitor_failed_groups | Removed: $monitor_removed | Alerts queued: $monitor_alerts"
     if [[ "$monitor_status" == "degraded" ]]; then
       echo "    Attention: At least one Cornell roster/subject group could not be checked."
     fi
