@@ -1982,10 +1982,12 @@ input[type='text']:focus {
 
 .mode-detail-content .cloud-profile {
   min-height: 40px;
+  flex: 1 1 auto;
 }
 
 .mode-detail-content .cloud-profile-copy {
-  max-width: min(250px, calc(100% - 44px));
+  max-width: none;
+  flex: 1 1 auto;
 }
 
 .cloud-account-action {
@@ -2119,10 +2121,6 @@ input[type='text']:focus {
   .discord-cloud-account {
     border-left: 0;
     padding: 0.82rem;
-  }
-
-  .mode-detail-content .cloud-profile-copy {
-    max-width: min(250px, calc(100% - 44px));
   }
 
   .cloud-account-body {
