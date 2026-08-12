@@ -115,4 +115,3 @@ The caller ARN should contain an assumed SSO role, not `root`. Review CloudWatch
 
 - Review the policies before public use.
 - Complete Discord team-owner identity verification before formal app verification or scaling beyond 100 servers.
-- Add local watchlist export/import.

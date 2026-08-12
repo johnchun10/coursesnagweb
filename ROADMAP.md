@@ -65,18 +65,16 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Receive and verify first availability-status DMs on tester account `jochu`.
 - [x] Remove tracker-added and tracker-removed Discord messages from the product behavior.
 - [x] Verify `/tracked` against the production watchlist and cooldown.
-- [x] Verify notifier retries and dead-letter behavior; seven stale pre-fix test messages remain quarantined.
+- [x] Verify notifier retries and dead-letter behavior; the dead-letter queue is currently empty.
 - [x] Verify seasonal OFFLINE and ONLINE announcements during a full mode rehearsal.
 
 ## Later work
 
 - [x] Authorize an HTTP localhost origin in AWS CORS for local Cloud-mode UI testing; direct `file://` access remains Local-only.
-- [ ] Add export/import backup for local watchlists.
 - [x] Add Privacy Policy and Terms of Service pages.
 - [x] Configure the production Privacy Policy and Terms URLs in Discord.
 - [ ] Review policies before public use.
 - [ ] Complete team-owner identity verification only when preparing for formal Discord app verification or scaling beyond 100 servers.
-- [x] Confirm the dead-letter queue is empty; no stale test messages remain.
 - [x] Run a complete Cloud Active → Local Standby → Cloud Active rehearsal.
 
 ## Edge-case backlog
