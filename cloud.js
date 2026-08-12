@@ -12,6 +12,7 @@
     profile: null,
     syncing: false,
     discordBusy: false,
+    discordFlowStage: 'ready',
     initialized: false,
     adapter: null,
     els: {}
@@ -84,10 +85,20 @@
       state.els.discordProfileDetail.textContent = 'Discord saves your watchlist and receives alerts';
     }
 
+    if (state.els.discordSetupFlow) {
+      state.els.discordSetupFlow.hidden = connected && state.discordFlowStage !== 'connected';
+      state.els.discordSetupFlow.dataset.stage = state.discordFlowStage;
+    }
+    if (state.els.discordServerNote) {
+      state.els.discordServerNote.hidden = connected && state.discordFlowStage !== 'connected';
+    }
+    if (state.els.discordProfile) {
+      state.els.discordProfile.hidden = !hasSession;
+    }
     state.els.discordButton.hidden = hasSession;
     state.els.discordButton.textContent = state.discordBusy
       ? 'Opening Discord…'
-      : 'Continue with Discord';
+      : 'Link Discord + add to server';
     state.els.discordButton.disabled = state.discordBusy;
     state.els.signOutButton.hidden = !hasSession;
     state.els.signOutButton.disabled = state.discordBusy;
@@ -213,6 +224,7 @@
   async function startDiscordSignIn() {
     if (state.discordBusy || state.sessionToken) return;
     state.discordBusy = true;
+    state.discordFlowStage = 'authorizing';
     renderAccount();
     setSyncStatus('Opening Discord authorization…', 'working');
 
@@ -227,6 +239,7 @@
       console.error('Discord sign-in failed:', error);
       setSyncStatus(error.message, 'error');
       state.discordBusy = false;
+      state.discordFlowStage = 'ready';
       renderAccount();
     }
   }
@@ -256,6 +269,8 @@
     window.history.replaceState({}, '', `${current.pathname}${current.search}${current.hash}`);
 
     let finalResult = result;
+    state.discordFlowStage = 'verifying';
+    renderAccount();
     try {
       if (result === 'connected') {
         if (!code) throw new Error('Discord login response was incomplete.');
@@ -269,17 +284,21 @@
         }
         state.sessionToken = payload.sessionToken;
         state.profile = payload.profile;
+        state.discordFlowStage = 'connected';
         localStorage.setItem(SESSION_KEY, payload.sessionToken);
         renderAccount();
         setSyncStatus('Discord connected. Loading your cloud watchlist…', 'success');
         await syncNow();
       } else if (result === 'cancelled') {
+        state.discordFlowStage = 'ready';
+        renderAccount();
         setSyncStatus('Discord sign-in cancelled.');
       } else if (result === 'delivery-unavailable') {
         finalResult = result;
+        state.discordFlowStage = 'failed';
         clearSession();
         setSyncStatus(
-          'CourseSnag could not send you a Discord DM. Join the shared CourseSnag server and allow direct messages, then try again.',
+          'CourseSnag joined your server, but Discord blocked the confirmation DM. Allow direct messages from server members, then try again.',
           'error'
         );
       } else {
@@ -287,6 +306,7 @@
       }
     } catch (error) {
       finalResult = 'error';
+      state.discordFlowStage = 'failed';
       clearSession();
       setSyncStatus(error.message, 'error');
     }
@@ -332,7 +352,10 @@
       signOutButton: document.getElementById('cloud-signout-btn'),
       discordProfileName: document.getElementById('discord-profile-name'),
       discordProfileDetail: document.getElementById('discord-profile-detail'),
-      discordButton: document.getElementById('discord-connect-btn')
+      discordProfile: document.getElementById('discord-profile'),
+      discordButton: document.getElementById('discord-connect-btn'),
+      discordSetupFlow: document.getElementById('discord-setup-flow'),
+      discordServerNote: document.getElementById('discord-server-note')
     };
 
     state.els.signOutButton.addEventListener('click', signOut);

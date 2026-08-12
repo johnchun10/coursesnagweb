@@ -149,7 +149,7 @@
               </span>
               <strong>Cloud</strong>
               <span class="mode-choice-description">Cloud server monitors watchlist; computer can be off and you will be alerted through Discord.</span>
-              <span class="mode-requirement">Requires Discord + shared server</span>
+              <span class="mode-requirement">Requires Discord + server access</span>
               <span class="mode-choice-bottomline">
                 <span class="mode-current-label" data-current-mode="cloud" hidden>Current mode</span>
                 <span id="cloud-option-action" class="mode-choice-action">Checking availability</span>
@@ -212,7 +212,7 @@
           <div class="mode-detail-heading">
             <span>Cloud</span>
             <h3 id="cloud-settings-title">Cloud setup</h3>
-            <p class="cloud-requirement-warning"><strong>Discord account and shared server required.</strong> Connecting replaces this browser's watchlist with your cloud watchlist.</p>
+            <p class="cloud-requirement-warning"><strong>One Discord approval.</strong> Link your account and add CourseSnag to your server. Zero server permissions requested.</p>
           </div>
 
           <div class="mode-detail-content">
@@ -227,6 +227,26 @@
             <section class="discord-cloud-account" aria-labelledby="discord-account-label">
               <span id="discord-account-label" class="settings-label">CourseSnag account</span>
 
+              <div id="discord-setup-flow" class="discord-setup-flow" data-stage="ready">
+                <div class="discord-flow-track" aria-hidden="true"><span></span></div>
+                <ol aria-label="Discord connection steps">
+                  <li>
+                    <span class="discord-flow-number" aria-hidden="true">1</span>
+                    <span><strong>Choose server</strong><small>Any server you can manage</small></span>
+                  </li>
+                  <li>
+                    <span class="discord-flow-number" aria-hidden="true">2</span>
+                    <span><strong>Approve Discord</strong><small>Account + bot in one screen</small></span>
+                  </li>
+                  <li>
+                    <span class="discord-flow-number" aria-hidden="true">3</span>
+                    <span><strong>DM confirmed</strong><small>Alerts are ready</small></span>
+                  </li>
+                </ol>
+              </div>
+
+              <p id="discord-server-note" class="discord-server-note">You need permission to add apps to the selected server. A private server works.</p>
+
               <div id="discord-profile" class="cloud-profile discord-profile">
                 <span class="discord-account-mark" aria-hidden="true">D</span>
                 <span class="cloud-profile-copy">
@@ -237,7 +257,7 @@
 
               <div class="discord-account-actions">
                 <button id="discord-connect-btn" class="btn btn-small btn-secondary cloud-account-action" type="button">
-                  Continue with Discord
+                  Link Discord + add to server
                 </button>
                 <button id="cloud-signout-btn" class="btn btn-small btn-secondary cloud-account-action" type="button" hidden>
                   Sign out

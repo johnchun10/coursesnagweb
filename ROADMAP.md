@@ -1,6 +1,6 @@
 # CourseSnag cloud roadmap
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 This is the durable project checkpoint. Read it with `docs/CLOUD_ARCHITECTURE.md` and `docs/OWNER_GUIDE.md` when resuming in a new session.
 
@@ -67,6 +67,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Verify `/tracked` against the production watchlist and cooldown.
 - [x] Verify notifier retries and dead-letter behavior; the dead-letter queue is currently empty.
 - [x] Verify seasonal OFFLINE and ONLINE announcements during a full mode rehearsal.
+- [x] Combine Discord identity linking and zero-permission server installation into one guided OAuth onboarding flow.
 
 ## Later work
 
@@ -81,7 +82,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 
 ### High priority
 
-- [x] Detect users who complete Discord OAuth without joining the shared server or allowing bot DMs; show actionable recovery instead of silently accepting a connection whose alerts cannot be delivered.
+- [x] Install the bot into a user-selected server during Discord OAuth and show actionable recovery when the confirmation DM is blocked.
 - [x] Record and surface Cornell group-level monitor failures so a partial Cornell outage cannot look like a fully healthy Lambda run.
 - [x] Add an owner alarm for new dead-letter messages and define a safe inspect/delete workflow.
 - [x] Prevent transition races: no course alert should arrive after OFFLINE, and ONLINE should precede the first resumed course alert.

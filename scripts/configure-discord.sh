@@ -54,16 +54,38 @@ case "$ACTION" in
     ;;
 esac
 DISCORD_DESCRIPTION="$(printf 'Track and get alerts for your Cornell courses: https://coursesnag.pages.dev\nStatus: %s' "$DISCORD_STATUS")"
+INSTALL_SETTINGS='{
+  "install_params": {
+    "scopes": ["applications.commands", "bot"],
+    "permissions": "0"
+  },
+  "integration_types_config": {
+    "0": {
+      "oauth2_install_params": {
+        "scopes": ["applications.commands", "bot"],
+        "permissions": "0"
+      }
+    },
+    "1": {
+      "oauth2_install_params": {
+        "scopes": ["applications.commands"],
+        "permissions": "0"
+      }
+    }
+  }
+}'
 
 if [[ "$DISCORD_STATUS" == "ONLINE" ]]; then
   ENDPOINT_BODY="$(jq -nc \
     --arg url "$INTERACTIONS_URL" \
     --arg description "$DISCORD_DESCRIPTION" \
-    '{interactions_endpoint_url: $url, description: $description}')"
+    --argjson install "$INSTALL_SETTINGS" \
+    '$install + {interactions_endpoint_url: $url, description: $description}')"
 else
   ENDPOINT_BODY="$(jq -nc \
     --arg description "$DISCORD_DESCRIPTION" \
-    '{description: $description}')"
+    --argjson install "$INSTALL_SETTINGS" \
+    '$install + {description: $description}')"
 fi
 curl -fsS \
   -X PATCH \

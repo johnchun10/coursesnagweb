@@ -1467,11 +1467,21 @@
 
   function updateSettingsActions() {
     const isChoice = state.settingsView === 'choice';
+    const cloudNeedsDiscord = !isChoice
+      && state.settingsView === 'cloud'
+      && !window.CourseSnagCloud?.getState?.().signedIn;
     els.settingsDoneButton.textContent = isChoice
       ? 'Continue'
-      : els.settingsDialog.dataset.onboarding === 'true' ? 'Finish setup' : 'Done';
-    els.settingsDoneButton.disabled = isChoice && !state.pendingAlertMode;
+      : cloudNeedsDiscord
+        ? 'Connect Discord first'
+        : els.settingsDialog.dataset.onboarding === 'true' ? 'Finish setup' : 'Done';
+    els.settingsDoneButton.disabled = (isChoice && !state.pendingAlertMode) || cloudNeedsDiscord;
     els.settingsSwitchModeButton.hidden = isChoice;
+    els.settingsFooterNote.textContent = isChoice
+      ? 'Select a mode to continue'
+      : cloudNeedsDiscord
+        ? 'Complete the Discord setup above'
+        : 'Changes save automatically';
 
     if (!isChoice) {
       const switchingToCloud = state.alertMode !== 'cloud';
@@ -1489,7 +1499,6 @@
     els.modeChoiceView.hidden = !isChoice;
     els.localSettingsView.hidden = view !== 'local';
     els.cloudSettingsView.hidden = view !== 'cloud';
-    els.settingsFooterNote.textContent = isChoice ? 'Select a mode to continue' : 'Changes save automatically';
 
     if (isChoice) {
       els.settingsEyebrow.textContent = els.settingsDialog.dataset.onboarding === 'true' ? 'First setup' : 'Preferences';

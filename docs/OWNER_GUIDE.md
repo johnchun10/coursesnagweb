@@ -1,6 +1,6 @@
 # CourseSnag owner guide
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## Configured services
 
@@ -13,9 +13,9 @@ Last updated: 2026-08-11
 - Discord interactions: `https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev/discord/interactions`
 - Annual AWS budget: USD 50 with 20%, 50%, 80%, and 100% alerts
 
-CourseSnag sign-in requests only Discord's `identify` scope. The website uses the resulting Discord ID for cloud ownership and direct-message delivery. Google is not part of the account flow.
+CourseSnag uses one advanced Discord OAuth flow with `identify`, `bot`, and `applications.commands`. Discord links the identity and installs the bot into a user-selected server in one screen. The installation requests zero server permissions; the resulting Discord ID owns the cloud watchlist. Google is not part of the account flow.
 
-Discord requires a proactive bot-DM recipient and bot to share a server. Add the CourseSnag bot to a dedicated server and ensure every cloud-alert user joins it. For a future public flow, CourseSnag can request `guilds.join` and add consenting users automatically during OAuth.
+Discord requires a proactive bot-DM recipient and bot to share a server. Each new cloud user selects a server where they have **Manage Server** during CourseSnag authorization; a private server works. CourseSnag sends a confirmation DM before creating the account, so blocked DMs fail onboarding visibly.
 
 ## Secret storage
 
@@ -48,9 +48,9 @@ Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub pu
 ## Testing cloud tracking
 
 1. Run `./scripts/season.sh start`.
-2. Confirm the CourseSnag bot and tester share a Discord server.
-3. Open `https://coursesnag.pages.dev` and select Cloud.
-4. Select **Continue with Discord** and approve the CourseSnag sign-in.
+2. Open `https://coursesnag.pages.dev` and select Cloud.
+3. Select **Link Discord + add to server**.
+4. In the single Discord screen, select a server the tester manages and approve identity plus bot installation.
 5. Confirm Settings displays the Discord account and Discord receives the connection confirmation.
 6. Add a section and confirm it remains after a page refresh.
 7. Run `/tracked` in the CourseSnag Discord DM and confirm its private response lists the section.

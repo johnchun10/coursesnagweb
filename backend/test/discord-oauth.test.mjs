@@ -10,7 +10,7 @@ const {
   resolveFrontendOrigin
 } = await import('../src/discord-oauth.mjs');
 
-test('builds a scoped Discord authorization URL', () => {
+test('builds one Discord flow that identifies the user and installs the bot', () => {
   const redirectUri = 'https://example.execute-api.us-east-1.amazonaws.com/dev/discord/callback';
   const result = new URL(buildDiscordAuthorizationUrl('state-token', redirectUri));
 
@@ -19,8 +19,9 @@ test('builds a scoped Discord authorization URL', () => {
   assert.equal(result.searchParams.get('client_id'), '1534241192819163296');
   assert.equal(result.searchParams.get('response_type'), 'code');
   assert.equal(result.searchParams.get('redirect_uri'), redirectUri);
-  assert.equal(result.searchParams.get('scope'), 'identify');
-  assert.equal(result.searchParams.has('integration_type'), false);
+  assert.equal(result.searchParams.get('scope'), 'identify bot applications.commands');
+  assert.equal(result.searchParams.get('permissions'), '0');
+  assert.equal(result.searchParams.get('integration_type'), '0');
   assert.equal(result.searchParams.get('state'), 'state-token');
 });
 

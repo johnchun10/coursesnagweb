@@ -18,12 +18,12 @@ The public site and Local mode require no CourseSnag account. Anonymous Local vi
 Discord is the only CourseSnag account provider and alert destination.
 
 1. The browser requests a ten-minute, single-use OAuth state from AWS. The state records whether the request came from the production site or the authorized localhost development origin.
-2. Discord asks the user to identify themselves.
-3. Discord returns a one-time code to the AWS callback.
+2. One Discord authorization screen asks the user to identify themselves and select a server where they can add apps. The `bot` and `applications.commands` install scopes request zero server permissions.
+3. Discord adds CourseSnag to the selected server and returns a one-time code to the AWS callback.
 4. AWS exchanges the code server-side, reads the stable Discord user ID and display profile, then immediately revokes the temporary Discord access token.
-5. AWS redirects the browser to that exact trusted origin with a two-minute, single-use CourseSnag login code.
-6. The browser exchanges that code for a random 30-day CourseSnag session token.
-7. DynamoDB stores only the session token's SHA-256 hash. The browser uses the opaque token as a bearer credential for watchlist requests.
+5. AWS sends a confirmation DM before accepting the connection, proving that future alerts can be delivered.
+6. AWS redirects the browser to that exact trusted origin with a two-minute, single-use CourseSnag login code.
+7. The browser exchanges that code for a random 30-day CourseSnag session token. DynamoDB stores only its SHA-256 hash.
 
 Signing out revokes the server-side session but does not erase the browser-local watchlist. Connecting a Discord account replaces the browser list with that account's AWS watchlist, including replacing it with an empty list. Local-only trackers are never uploaded as part of sign-in.
 
@@ -49,7 +49,7 @@ Monitor Lambda -> Cornell roster API -> DynamoDB status update
                                   \-> FIFO alert queue on status changes
 ```
 
-Discord's proactive bot DMs require the bot and recipient to share a guild. CourseSnag therefore needs a dedicated Discord server containing the bot and each cloud-alert user. User Install alone does not satisfy this requirement.
+Discord's proactive bot DMs require the bot and recipient to share a guild. CourseSnag's single authorization flow therefore links the Discord identity and installs the bot into a server selected by the user. The user must have Discord's **Manage Server** permission there, but CourseSnag itself requests zero server permissions. A private server is sufficient. Discord User Install alone does not provide the same reliable scheduled-DM path.
 
 Discord messages are generated when:
 
@@ -95,7 +95,7 @@ The seasonal command sends one OFFLINE DM when it changes from Cloud Active to L
 
 CourseSnag uses Discord's HTTP API rather than a persistent Gateway connection. This keeps the backend serverless, but Discord therefore shows the bot's presence dot as offline even during Cloud Active. The application-description status and latest seasonal DM are the durable user-facing indicators; there is no additional OFFLINE command response.
 
-Discord OAuth is accepted only after CourseSnag successfully sends the connection-confirmation DM. A failure tells the user to join the shared CourseSnag server and allow direct messages before retrying, instead of creating an account that cannot receive alerts.
+Discord OAuth is accepted only after CourseSnag successfully sends the connection-confirmation DM. A failure tells the user to allow direct messages from members of the selected server before retrying, instead of creating an account that cannot receive alerts.
 
 Course notifications are re-checked against the live mode by the notifier. Transitional `starting` and `stopping` states keep the scheduled monitor gated while ONLINE/OFFLINE messages are ordered. Cornell roster/subject failures are counted in the persisted monitor result and shown as degraded status. A CloudWatch alarm emails the owner when any message enters the dead-letter queue.
 

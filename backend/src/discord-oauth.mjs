@@ -104,7 +104,9 @@ export function buildDiscordAuthorizationUrl(state, redirectUri) {
     client_id: config.discordApplicationId,
     response_type: 'code',
     redirect_uri: redirectUri,
-    scope: 'identify',
+    scope: 'identify bot applications.commands',
+    permissions: '0',
+    integration_type: '0',
     state,
     prompt: 'consent'
   });
