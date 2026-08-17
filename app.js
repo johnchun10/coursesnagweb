@@ -10,19 +10,18 @@
   const STORAGE_PREFIX = 'csw.';
   const DEBOUNCE_DELAY_MS = 400;
   const RATE_LIMIT_MS = 1000; // 1 request per second
-  const POLLING_OPTIONS = [10, 30, 60, 300];
+  const POLLING_OPTIONS = [300, 600, 900, 1200];
+  const DEFAULT_POLLING_INTERVAL_SEC = 300;
 
   // ============================================
   // State
   // ============================================
   const state = {
     rosters: [],
-    subjects: [],
     subjectSet: new Set(),
     currentRoster: null,
     // Cache for subject classes (avoid re-fetching when typing numbers)
     cachedSubject: null,
-    cachedQuery: '',
     cachedClasses: [],
     // Filtered results displayed to user
     searchResults: [],
@@ -33,6 +32,7 @@
     requestQueue: Promise.resolve(),
     pollingTimer: null,
     searchDebounceTimer: null,
+    searchAbortController: null,
     isSearching: false,
     isRefreshing: false,
     searchRequestSeq: 0,
@@ -42,7 +42,7 @@
     // Settings
     soundEnabled: false,
     notifyEnabled: false,
-    pollingIntervalSec: 60,
+    pollingIntervalSec: DEFAULT_POLLING_INTERVAL_SEC,
     alertMode: null,
     pendingAlertMode: null,
     settingsView: 'choice',
@@ -78,7 +78,6 @@
     settingsDialog: document.getElementById('settings-dialog'),
     settingsCloseButton: document.getElementById('settings-close-btn'),
     settingsDoneButton: document.getElementById('settings-done-btn'),
-    settingsSwitchModeButton: document.getElementById('settings-switch-mode-btn'),
     settingsEyebrow: document.getElementById('settings-eyebrow'),
     settingsTitle: document.getElementById('settings-title'),
     settingsFooterNote: document.getElementById('settings-footer-note'),
@@ -90,6 +89,7 @@
     cloudOptionStatus: document.getElementById('cloud-option-status'),
     cloudOptionStatusText: document.getElementById('cloud-option-status-text'),
     cloudOptionAction: document.getElementById('cloud-option-action'),
+    cloudAccountPanel: document.querySelector('.discord-cloud-account'),
     modeCurrentLabels: document.querySelectorAll('[data-current-mode]'),
     // Alert elements
     alertBanner: document.getElementById('alert-banner')
@@ -98,6 +98,7 @@
   // Track dismissed alerts (class numbers dismissed for 5 minutes)
   // Stored in localStorage with expiration timestamp
   const dismissedAlerts = new Map();
+  const courseSectionsCache = new WeakMap();
 
   function loadDismissedAlerts() {
     const stored = loadFromStorage('dismissedAlerts', {});
@@ -386,11 +387,6 @@
       stopAlertSound();
     }
 
-    // Also clear it from memory after 5 minutes
-    setTimeout(() => {
-      dismissedAlerts.delete(trackedKey);
-      saveDismissedAlerts();
-    }, 5 * 60 * 1000);
   }
 
   function isAlertDismissed(trackedKey) {
@@ -419,7 +415,7 @@
     const settings = loadFromStorage('settings', {
       soundEnabled: false,
       notifyEnabled: false,
-      pollingIntervalSec: 60
+      pollingIntervalSec: DEFAULT_POLLING_INTERVAL_SEC
     });
     state.soundEnabled = Boolean(settings.soundEnabled);
     state.notifyEnabled = Boolean(settings.notifyEnabled);
@@ -428,7 +424,7 @@
     }
     state.pollingIntervalSec = POLLING_OPTIONS.includes(settings.pollingIntervalSec)
       ? settings.pollingIntervalSec
-      : 60;
+      : DEFAULT_POLLING_INTERVAL_SEC;
 
     // Update UI
     els.soundToggle.checked = state.soundEnabled;
@@ -465,18 +461,46 @@
     return msg || 'An unexpected error occurred.';
   }
 
-  async function rateLimitedFetch(url) {
+  function createAbortError() {
+    const error = new Error('The operation was aborted.');
+    error.name = 'AbortError';
+    return error;
+  }
+
+  function waitFor(delayMs, signal) {
+    if (delayMs <= 0) return Promise.resolve();
+    if (!signal) return new Promise(resolve => setTimeout(resolve, delayMs));
+    if (signal.aborted) return Promise.reject(createAbortError());
+
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', onAbort);
+        reject(createAbortError());
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, delayMs);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  async function rateLimitedFetch(url, { signal } = {}) {
     const task = async () => {
+      if (signal?.aborted) throw createAbortError();
+
       const now = Date.now();
       const timeSinceLast = now - state.lastRequestTime;
 
       if (timeSinceLast < RATE_LIMIT_MS) {
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_MS - timeSinceLast));
+        await waitFor(RATE_LIMIT_MS - timeSinceLast, signal);
       }
 
+      if (signal?.aborted) throw createAbortError();
       state.lastRequestTime = Date.now();
 
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
@@ -489,7 +513,7 @@
       return data.data;
     };
 
-    const taskPromise = state.requestQueue.then(task, task);
+    const taskPromise = state.requestQueue.then(task);
     state.requestQueue = taskPromise.catch(() => {});
     return taskPromise;
   }
@@ -503,16 +527,13 @@
   }
 
   async function fetchSubjects(roster) {
-    const data = await rateLimitedFetch(`${API_BASE}/config/subjects.json?roster=${roster}`);
+    const data = await rateLimitedFetch(`${API_BASE}/config/subjects.json?roster=${encodeURIComponent(roster)}`);
     return data.subjects || [];
   }
 
-  async function searchClasses(roster, subject, query = '') {
-    let url = `${API_BASE}/search/classes.json?roster=${roster}&subject=${subject}&_=${Date.now()}`;
-    if (query) {
-      url += `&q=${encodeURIComponent(query)}`;
-    }
-    const data = await rateLimitedFetch(url);
+  async function searchClasses(roster, subject, options = {}) {
+    const url = `${API_BASE}/search/classes.json?roster=${encodeURIComponent(roster)}&subject=${encodeURIComponent(subject)}&_=${Date.now()}`;
+    const data = await rateLimitedFetch(url, options);
     return data.classes || [];
   }
 
@@ -590,23 +611,23 @@
     let html = '';
 
     for (const course of state.searchResults) {
-      const sections = extractSections(course);
+      const sections = getCourseSections(course);
       if (sections.length === 0) continue;
 
-      const courseId = `${course.subject}-${course.catalogNbr}`;
+      const courseId = getCourseId(course);
       const isExpanded = state.expandedCourses.has(courseId);
 
       html += `
         <div class="course-card ${isExpanded ? 'expanded' : ''}" data-course-id="${escapeAttr(courseId)}">
-          <div class="course-header" data-action="toggle-course" data-course-id="${escapeAttr(courseId)}">
+          <div class="course-header" data-action="toggle-course" data-course-id="${escapeAttr(courseId)}" aria-expanded="${isExpanded ? 'true' : 'false'}">
             <div class="course-header-info">
               <div class="course-title">${escapeHtml(course.titleShort || course.titleLong || 'Untitled course')}</div>
               <div class="course-code">${course.subject} ${course.catalogNbr} (${sections.length} section${sections.length !== 1 ? 's' : ''})</div>
             </div>
             <span class="course-toggle">▼</span>
           </div>
-          <div class="sections-list">
-            ${sections.map(sec => renderSectionRow(course, sec)).join('')}
+          <div class="sections-list"${isExpanded ? ' data-loaded="true"' : ''}>
+            ${isExpanded ? sections.map(sec => renderSectionRow(course, sec)).join('') : ''}
           </div>
         </div>
       `;
@@ -615,13 +636,21 @@
     els.searchResults.innerHTML = html || '<p class="empty-state">No sections found.</p>';
   }
 
-  function extractSections(course) {
+  function getCourseId(course) {
+    return `${course.subject}-${course.catalogNbr}`;
+  }
+
+  function getCourseSections(course) {
+    const cachedSections = courseSectionsCache.get(course);
+    if (cachedSections) return cachedSections;
+
     const sections = [];
     for (const eg of (course.enrollGroups || [])) {
       for (const sec of (eg.classSections || [])) {
         sections.push(sec);
       }
     }
+    courseSectionsCache.set(course, sections);
     return sections;
   }
 
@@ -667,6 +696,20 @@
     `;
   }
 
+  function syncSearchTrackButtons(classNbr = null) {
+    const buttons = els.searchResults.querySelectorAll('button[data-action="toggle-track"]');
+    for (const button of buttons) {
+      if (classNbr !== null && button.dataset.classNbr !== String(classNbr)) continue;
+
+      const key = `${state.currentRoster}:${String(button.dataset.classNbr)}`;
+      const isTracked = state.trackedKeySet.has(key);
+      button.classList.toggle('btn-primary', !isTracked);
+      button.classList.toggle('btn-secondary', isTracked);
+      button.disabled = isTracked;
+      button.textContent = isTracked ? 'Tracked' : 'Track';
+    }
+  }
+
   function renderTrackedList() {
     updateTabOpenNotice();
 
@@ -681,7 +724,7 @@
       const trackedKey = `${item.roster}:${item.classNbr}`;
 
       return `
-        <div class="tracked-item" data-tracked-key="${trackedKey}">
+        <div class="tracked-item" data-tracked-key="${escapeAttr(trackedKey)}">
           <div class="tracked-info">
             <div class="tracked-course">${item.subject} ${item.catalogNbr}</div>
             <div class="tracked-section">
@@ -708,6 +751,33 @@
     }).join('');
   }
 
+  function updateTrackedStatuses() {
+    const itemElements = new Map();
+    for (const element of els.trackedList.querySelectorAll('.tracked-item[data-tracked-key]')) {
+      itemElements.set(element.dataset.trackedKey, element);
+    }
+
+    for (const item of state.trackedSections) {
+      const key = trackerKey(item);
+      const element = itemElements.get(key);
+      if (!element) continue;
+
+      const statusBadge = element.querySelector('.badge-status');
+      if (statusBadge) {
+        const className = `badge badge-status ${getStatusClass(item.lastStatus)}`.trim();
+        const label = getStatusLabel(item.lastStatus);
+        if (statusBadge.className !== className) statusBadge.className = className;
+        if (statusBadge.textContent !== label) statusBadge.textContent = label;
+      }
+
+      if (item.lastStatus !== 'O') {
+        document.getElementById(`alert-${key}`)?.remove();
+      }
+    }
+
+    updateTabOpenNotice();
+  }
+
   function updateTabOpenNotice() {
     if (!els.tabOpenNotice || !els.tabOpenNoticeText) return;
 
@@ -720,22 +790,22 @@
     const cloudState = window.CourseSnagCloud?.getState();
     if (state.alertMode === 'cloud' && (!cloudState || cloudState.mode === 'checking')) {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Checking Cloud mode status.';
+      els.tabOpenNoticeText.textContent = 'Checking Cloud Alerts status. Keep this tab open for browser alerts.';
     } else if (state.alertMode === 'cloud' && cloudState?.mode !== 'cloud') {
       els.tabOpenNotice.dataset.mode = 'unavailable';
-      els.tabOpenNoticeText.textContent = 'Cloud mode is unavailable.';
+      els.tabOpenNoticeText.textContent = 'Cloud inactive. Keep this tab open for browser alerts.';
     } else if (state.alertMode === 'cloud' && cloudState?.signedIn) {
       els.tabOpenNotice.dataset.mode = 'cloud';
-      els.tabOpenNoticeText.textContent = 'Cloud alerts are enabled.';
+      els.tabOpenNoticeText.textContent = 'Cloud Alerts are active. Keep this tab open for in-browser alerts.';
     } else if (state.alertMode === 'cloud') {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Connect Discord to enable cloud alerts.';
+      els.tabOpenNoticeText.textContent = 'Connect Discord for Cloud Alerts. Keep this tab open for browser alerts.';
     } else if (!state.alertMode) {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Select an alert mode.';
+      els.tabOpenNoticeText.textContent = 'Choose Cloud Alerts or Browser Alerts.';
     } else {
       els.tabOpenNotice.dataset.mode = 'local';
-      els.tabOpenNoticeText.textContent = 'Keep this tab open for local alerts.';
+      els.tabOpenNoticeText.textContent = 'Keep this tab open for browser alerts.';
     }
     els.tabOpenNotice.classList.remove('hidden');
   }
@@ -763,9 +833,10 @@
   }
 
   function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   function escapeAttr(str) {
@@ -826,8 +897,8 @@
     if (!state.currentRoster) return;
 
     try {
-      state.subjects = await fetchSubjects(state.currentRoster);
-      state.subjectSet = new Set(state.subjects.map(s => s.value));
+      const subjects = await fetchSubjects(state.currentRoster);
+      state.subjectSet = new Set(subjects.map(subject => subject.value));
     } catch (error) {
       console.error('Failed to load subjects:', error);
       state.initError = getUserFriendlyError(error, 'Subjects');
@@ -845,9 +916,8 @@
     const parsed = parseSearchInput(inputValue);
 
     if (!parsed) {
+      cancelActiveSearch();
       state.searchResults = [];
-      state.cachedSubject = null;
-      state.cachedClasses = [];
       state.expandedCourses.clear();
       state.searchError = null;
       setSearchStatus('');
@@ -859,31 +929,44 @@
     const needsFetch = parsed.subject !== state.cachedSubject;
 
     if (needsFetch) {
+      cancelActiveSearch();
+      const controller = new AbortController();
+      state.searchAbortController = controller;
       state.expandedCourses.clear();
       state.isSearching = true;
       renderSearchResults();
 
+      let classes = null;
+      let fetchError = null;
       try {
         // Always fetch ALL classes for the subject (no query parameter)
-        const classes = await searchClasses(state.currentRoster, parsed.subject, '');
-        if (!isCurrentSearch()) return;
-        state.cachedClasses = classes;
-        state.cachedSubject = parsed.subject;
+        classes = await searchClasses(state.currentRoster, parsed.subject, {
+          signal: controller.signal
+        });
       } catch (error) {
-        if (!isCurrentSearch()) return;
-        console.error('Search failed:', error);
-        state.searchError = getUserFriendlyError(error, 'Subject');
+        fetchError = error;
+      } finally {
+        if (state.searchAbortController === controller) {
+          state.searchAbortController = null;
+        }
+        if (isCurrentSearch()) {
+          state.isSearching = false;
+        }
+      }
+
+      if (!isCurrentSearch() || controller.signal.aborted) return;
+
+      if (fetchError) {
+        console.error('Search failed:', fetchError);
+        state.searchError = getUserFriendlyError(fetchError, 'Subject');
         setSearchStatus('');
-        state.cachedClasses = [];
-        state.cachedSubject = null;
         state.searchResults = [];
-        state.isSearching = false;
         renderSearchResults();
         return;
       }
 
-      if (!isCurrentSearch()) return;
-      state.isSearching = false;
+      state.cachedClasses = classes;
+      state.cachedSubject = parsed.subject;
     }
 
     if (!isCurrentSearch()) return;
@@ -907,7 +990,7 @@
     // Auto-expand if only 1 result
     if (state.searchResults.length === 1) {
       const course = state.searchResults[0];
-      const courseId = `${course.subject}-${course.catalogNbr}`;
+      const courseId = getCourseId(course);
       state.expandedCourses.clear();
       state.expandedCourses.add(courseId);
     }
@@ -915,36 +998,63 @@
     renderSearchResults();
   }
 
+  function cancelActiveSearch() {
+    if (state.searchAbortController) {
+      state.searchAbortController.abort();
+      state.searchAbortController = null;
+    }
+    state.isSearching = false;
+  }
+
   function debounceSearch() {
     const parsed = parseSearchInput(els.searchInput.value);
+    cancelActiveSearch();
+    clearTimeout(state.searchDebounceTimer);
 
-    // If same subject, render immediately (client-side filtering, no API call needed)
-    if (parsed && parsed.subject === state.cachedSubject) {
-      clearTimeout(state.searchDebounceTimer);
+    if (!parsed) {
       performSearch();
       return;
     }
 
-    // Different subject or no subject - debounce the API call
-    clearTimeout(state.searchDebounceTimer);
+    // If same subject, render immediately (client-side filtering, no API call needed)
+    if (parsed.subject === state.cachedSubject) {
+      performSearch();
+      return;
+    }
+
+    // Debounce API work for a different subject.
     state.searchDebounceTimer = setTimeout(performSearch, DEBOUNCE_DELAY_MS);
   }
 
   // ============================================
   // Course Toggle
   // ============================================
-  function toggleCourse(courseId) {
-    if (state.expandedCourses.has(courseId)) {
+  function toggleCourse(courseId, card) {
+    const isExpanded = state.expandedCourses.has(courseId);
+    if (isExpanded) {
       state.expandedCourses.delete(courseId);
     } else {
       state.expandedCourses.add(courseId);
     }
 
-    // Update just this course card without re-rendering everything
-    const card = document.querySelector(`[data-course-id="${courseId}"]`);
-    if (card) {
-      card.classList.toggle('expanded');
+    if (!card) return;
+
+    const shouldExpand = !isExpanded;
+    if (shouldExpand) {
+      const sectionsList = card.querySelector('.sections-list');
+      if (sectionsList && sectionsList.dataset.loaded !== 'true') {
+        const course = state.searchResults.find(result => getCourseId(result) === courseId);
+        if (course) {
+          sectionsList.innerHTML = getCourseSections(course)
+            .map(section => renderSectionRow(course, section))
+            .join('');
+          sectionsList.dataset.loaded = 'true';
+        }
+      }
     }
+    card.classList.toggle('expanded', shouldExpand);
+    card.querySelector('[data-action="toggle-course"]')
+      ?.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
   }
 
   // ============================================
@@ -980,7 +1090,7 @@
     return `${tracker.roster}:${String(tracker.classNbr)}`;
   }
 
-  function removeTrackedSections(shouldRemove) {
+  function removeTrackedSections(shouldRemove, { refreshUi = true } = {}) {
     const removed = [];
     state.trackedSections = state.trackedSections.filter(tracker => {
       if (!shouldRemove(tracker)) return true;
@@ -997,9 +1107,11 @@
     }
 
     saveDismissedAlerts();
-    saveTrackedSections();
-    renderTrackedList();
-    renderSearchResults();
+    if (refreshUi) {
+      saveTrackedSections();
+      renderTrackedList();
+      syncSearchTrackButtons();
+    }
     if (!hasActiveUndismissedOpenAlerts()) stopAlertSound();
 
     for (const tracker of removed) {
@@ -1011,6 +1123,8 @@
   function replaceLocalTrackers(cloudTrackers) {
     const replacement = [];
     const replacementKeys = new Set();
+    const staleTrackers = [];
+    const staleTrackerKeys = new Set();
 
     for (const cloudTracker of cloudTrackers) {
       if (!cloudTracker?.roster || !cloudTracker?.classNbr || !cloudTracker?.subject) continue;
@@ -1028,6 +1142,13 @@
         lastCheckedAt: cloudTracker.lastCheckedAt || null
       };
       const key = trackerKey(normalizedCloud);
+      if (state.currentRoster && normalizedCloud.roster !== state.currentRoster) {
+        if (!staleTrackerKeys.has(key)) {
+          staleTrackers.push(normalizedCloud);
+          staleTrackerKeys.add(key);
+        }
+        continue;
+      }
       if (replacementKeys.has(key)) continue;
       replacement.push(normalizedCloud);
       replacementKeys.add(key);
@@ -1041,10 +1162,10 @@
     saveDismissedAlerts();
     saveTrackedSections();
     renderTrackedList();
-    renderSearchResults();
+    syncSearchTrackButtons();
     if (!hasActiveUndismissedOpenAlerts()) stopAlertSound();
-    if (state.currentRoster) {
-      removeTrackedSections(item => item.roster !== state.currentRoster);
+    for (const tracker of staleTrackers) {
+      void window.CourseSnagCloud?.trackerRemoved(tracker);
     }
   }
 
@@ -1073,7 +1194,7 @@
 
     saveTrackedSections();
     renderTrackedList();
-    renderSearchResults(); // Update track buttons
+    syncSearchTrackButtons(classNbrStr);
     void window.CourseSnagCloud?.trackerAdded(newItem);
 
     // Alert immediately if tracking an already-open section (after DOM is updated)
@@ -1114,10 +1235,11 @@
 
     const newlyOpened = [];
     const missingTrackerKeys = new Set();
+    const checkedAt = new Date().toISOString();
 
     try {
       for (const group of Object.values(groups)) {
-        const classes = await searchClasses(group.roster, group.subject, '');
+        const classes = await searchClasses(group.roster, group.subject);
         const statusIndex = new Map();
 
         for (const course of classes) {
@@ -1143,24 +1265,28 @@
           }
 
           item.lastStatus = newStatus;
-          item.lastCheckedAt = new Date().toISOString();
+          item.lastCheckedAt = checkedAt;
         }
       }
 
-      removeTrackedSections(item => missingTrackerKeys.has(trackerKey(item)));
+      const removed = removeTrackedSections(
+        item => missingTrackerKeys.has(trackerKey(item)),
+        { refreshUi: false }
+      );
 
       saveTrackedSections();
-      renderTrackedList();
+      if (removed.length > 0) {
+        renderTrackedList();
+        syncSearchTrackButtons();
+      } else {
+        updateTrackedStatuses();
+      }
       updateLastUpdated();
-      els.trackedStatus.textContent = '';
-      els.trackedStatus.classList.remove('loading');
+      setTrackedStatus('');
 
       // Trigger full alert (sound + notification + overlay) for newly opened sections
-      const activeTrackedKeys = new Set(
-        state.trackedSections.map(item => `${item.roster}:${item.classNbr}`)
-      );
       const actionableNewlyOpened = newlyOpened.filter(item =>
-        activeTrackedKeys.has(`${item.roster}:${item.classNbr}`)
+        state.trackedKeySet.has(`${item.roster}:${item.classNbr}`)
       );
 
       if (actionableNewlyOpened.length > 0) {
@@ -1181,13 +1307,13 @@
           showAlertOverItem(item, trackedElement, trackedKey);
         }
       }
+      if (!hasActiveUndismissedOpenAlerts()) stopAlertSound();
     } catch (error) {
       console.error('Refresh failed:', error);
-      els.trackedStatus.textContent = getUserFriendlyError(error, 'Refresh');
-      els.trackedStatus.classList.add('error');
+      setTrackedStatus(getUserFriendlyError(error, 'Refresh'), 'error');
+    } finally {
+      state.isRefreshing = false;
     }
-
-    state.isRefreshing = false;
   }
 
   function startPolling() {
@@ -1226,6 +1352,7 @@
     els.searchInput.focus();
     setSearchStatus('');
     clearTimeout(state.searchDebounceTimer);
+    cancelActiveSearch();
     performSearch();
   }
 
@@ -1250,7 +1377,7 @@
     if (courseHeader && els.searchResults.contains(courseHeader)) {
       const courseId = courseHeader.dataset.courseId;
       if (courseId) {
-        toggleCourse(courseId);
+        toggleCourse(courseId, courseHeader.closest('.course-card'));
       }
       return;
     }
@@ -1375,7 +1502,7 @@
     if (!els.pollingSegmented) return;
     const buttons = Array.from(els.pollingSegmented.querySelectorAll('.segment-btn'));
     const index = buttons.findIndex(btn => Number(btn.dataset.interval) === state.pollingIntervalSec);
-    const resolvedIndex = index >= 0 ? index : 2;
+    const resolvedIndex = index >= 0 ? index : 0;
 
     buttons.forEach((btn, i) => {
       const isActive = i === resolvedIndex;
@@ -1404,18 +1531,6 @@
     return window.CourseSnagCloud?.getState?.().mode === 'cloud';
   }
 
-  function fallBackToLocalWhenCloudIsUnavailable(cloudState) {
-    const unavailable = cloudState
-      && cloudState.mode !== 'checking'
-      && cloudState.mode !== 'cloud';
-    if (state.alertMode !== 'cloud' || !unavailable) return false;
-
-    state.alertMode = 'local';
-    state.pendingAlertMode = 'local';
-    saveToStorage('alertMode', 'local');
-    return true;
-  }
-
   function updateCloudModeChoice() {
     const cloudState = window.CourseSnagCloud?.getState();
     const checking = !cloudState || cloudState.mode === 'checking';
@@ -1424,8 +1539,8 @@
     els.chooseCloudMode.disabled = !available;
     els.chooseCloudMode.setAttribute('aria-disabled', available ? 'false' : 'true');
     els.cloudOptionStatus.className = `mode-choice-availability ${checking ? 'checking' : available ? 'available' : 'unavailable'}`;
-    els.cloudOptionStatusText.textContent = checking ? 'Checking' : available ? 'Available' : 'Unavailable';
-    els.cloudOptionAction.textContent = checking ? 'Checking availability' : available ? 'Select' : 'Unavailable';
+    els.cloudOptionStatusText.textContent = checking ? 'Checking' : available ? 'Available' : 'Inactive';
+    els.cloudOptionAction.textContent = checking ? 'Checking availability' : available ? 'Select' : 'Cloud inactive';
 
     if (!available && state.pendingAlertMode === 'cloud' && state.settingsView === 'choice') {
       state.pendingAlertMode = null;
@@ -1434,7 +1549,6 @@
 
   function renderAlertMode() {
     const cloudState = window.CourseSnagCloud?.getState();
-    const switchedToLocal = fallBackToLocalWhenCloudIsUnavailable(cloudState);
     updateCloudModeChoice();
     for (const label of els.modeCurrentLabels) {
       label.hidden = label.dataset.currentMode !== state.alertMode;
@@ -1446,22 +1560,29 @@
     els.chooseLocalMode.setAttribute('aria-pressed', state.pendingAlertMode === 'local' ? 'true' : 'false');
     els.chooseCloudMode.setAttribute('aria-pressed', state.pendingAlertMode === 'cloud' ? 'true' : 'false');
 
+    const cloudChecking = !cloudState || cloudState.mode === 'checking';
+    const cloudAvailable = cloudState?.mode === 'cloud';
     const cloudUnavailable = cloudState && cloudState.mode !== 'checking' && cloudState.mode !== 'cloud';
+    els.cloudSettingsView.classList.toggle('is-inactive', cloudUnavailable);
+    els.cloudSettingsView.classList.toggle('is-checking', cloudChecking);
+    els.cloudSettingsView.dataset.cloudAvailability = cloudChecking
+      ? 'checking'
+      : cloudAvailable ? 'active' : 'inactive';
+    if (els.cloudAccountPanel) {
+      els.cloudAccountPanel.hidden = !cloudAvailable;
+    }
+
     const footerMode = state.alertMode === 'cloud' && cloudUnavailable
       ? 'unavailable'
       : state.alertMode || 'unset';
     const footerModeLabel = footerMode === 'unavailable'
-      ? 'Cloud unavailable'
+      ? 'Cloud inactive, browser alerts available'
       : footerMode === 'unset'
-        ? 'No alert mode selected'
-        : `${footerMode === 'cloud' ? 'Cloud' : 'Local'} mode`;
+        ? 'No alert delivery selected'
+        : footerMode === 'cloud' ? 'Cloud and in-browser settings' : 'Browser Alerts settings';
     els.settingsButton.textContent = 'Settings';
     els.settingsButton.dataset.mode = footerMode;
     els.settingsButton.setAttribute('aria-label', `Settings, ${footerModeLabel}`);
-
-    if (switchedToLocal && state.settingsView === 'cloud') {
-      showSettingsView('local');
-    }
 
     updateSettingsActions();
     updateTabOpenNotice();
@@ -1469,45 +1590,45 @@
 
   function updateSettingsActions() {
     const isChoice = state.settingsView === 'choice';
-    const cloudNeedsDiscord = !isChoice
+    const isOnboarding = els.settingsDialog.dataset.onboarding === 'true';
+    const cloudState = window.CourseSnagCloud?.getState?.();
+    const cloudUnavailable = state.settingsView === 'cloud'
+      && cloudState
+      && cloudState.mode !== 'checking'
+      && cloudState.mode !== 'cloud';
+    const cloudNeedsDiscord = isOnboarding
+      && !isChoice
       && state.settingsView === 'cloud'
+      && cloudIsAvailable()
       && !window.CourseSnagCloud?.getState?.().signedIn;
     els.settingsDoneButton.textContent = isChoice
       ? 'Continue'
       : cloudNeedsDiscord
-        ? 'Connect Discord'
-        : els.settingsDialog.dataset.onboarding === 'true' ? 'Finish setup' : 'Done';
+        ? 'Connect Discord above'
+        : isOnboarding ? 'Finish setup' : 'Done';
     els.settingsDoneButton.disabled = (isChoice && !state.pendingAlertMode) || cloudNeedsDiscord;
-    els.settingsSwitchModeButton.hidden = isChoice;
     els.settingsFooterNote.textContent = isChoice
-      ? 'Select a mode to continue.'
+      ? 'Choose how CourseSnag should alert you.'
       : cloudNeedsDiscord
-        ? 'Connect Discord to continue.'
-        : 'Changes are saved automatically.';
-
-    if (!isChoice) {
-      const switchingToCloud = state.alertMode !== 'cloud';
-      const cloudAvailable = cloudIsAvailable();
-      els.settingsSwitchModeButton.textContent = switchingToCloud
-        ? cloudAvailable ? 'Switch to Cloud' : 'Cloud unavailable'
-        : 'Switch to Local';
-      els.settingsSwitchModeButton.disabled = switchingToCloud && !cloudAvailable;
-    }
+        ? 'Connect Discord to finish Cloud Alerts setup.'
+        : cloudUnavailable
+          ? 'Cloud is inactive. In-browser settings remain available.'
+          : 'Changes are saved automatically.';
   }
 
   function showSettingsView(view) {
     state.settingsView = view;
     const isChoice = view === 'choice';
+    els.settingsDialog.classList.toggle('is-browser-only', !isChoice && view === 'local');
     els.modeChoiceView.hidden = !isChoice;
-    els.localSettingsView.hidden = view !== 'local';
+    els.localSettingsView.hidden = isChoice;
     els.cloudSettingsView.hidden = view !== 'cloud';
 
     if (isChoice) {
       els.settingsEyebrow.textContent = els.settingsDialog.dataset.onboarding === 'true' ? 'Setup' : 'Preferences';
-      els.settingsTitle.textContent = 'Choose alert mode';
+      els.settingsTitle.textContent = 'Choose your alerts';
     } else {
-      const label = view === 'cloud' ? 'Cloud' : 'Local';
-      els.settingsEyebrow.textContent = `Alert mode / ${label}`;
+      els.settingsEyebrow.textContent = 'Alert preferences';
       els.settingsTitle.textContent = 'Settings';
     }
     updateSettingsActions();
@@ -1530,19 +1651,6 @@
     }
   }
 
-  function switchAlertMode() {
-    const nextMode = state.alertMode === 'cloud' ? 'local' : 'cloud';
-    if (nextMode === 'cloud' && !cloudIsAvailable()) return;
-    state.alertMode = nextMode;
-    state.pendingAlertMode = nextMode;
-    saveToStorage('alertMode', nextMode);
-    renderAlertMode();
-    showSettingsView(nextMode);
-    if (nextMode === 'cloud') {
-      void window.CourseSnagCloud?.syncNow?.();
-    }
-  }
-
   function onSettingsPrimaryAction() {
     if (state.settingsView === 'choice') {
       commitPendingAlertMode();
@@ -1558,9 +1666,6 @@
     renderAlertMode();
     showSettingsView(isOnboarding || !state.alertMode ? 'choice' : state.alertMode);
     if (!els.settingsDialog.open) els.settingsDialog.showModal();
-    if (!isOnboarding && state.alertMode === 'local') {
-      window.CourseSnagCloud?.refreshMode?.();
-    }
   }
 
   function closeSettings() {
@@ -1601,7 +1706,6 @@
     els.settingsButton.addEventListener('click', () => openSettings(false));
     els.settingsCloseButton.addEventListener('click', closeSettings);
     els.settingsDoneButton.addEventListener('click', onSettingsPrimaryAction);
-    els.settingsSwitchModeButton.addEventListener('click', switchAlertMode);
     els.chooseLocalMode.addEventListener('click', () => selectAlertMode('local'));
     els.chooseCloudMode.addEventListener('click', () => selectAlertMode('cloud'));
     els.settingsDialog.addEventListener('close', finishSettingsSession);
@@ -1645,11 +1749,24 @@
     if (!state.alertMode && !discordSetupRequested) {
       requestAnimationFrame(() => openSettings(true));
     }
-    await window.CourseSnagCloud?.initialize({
-      replaceLocalTrackers,
-      initialAlertMode: state.alertMode,
-      cloudSetupRequested: discordSetupRequested
+    const cloudInitialization = Promise.resolve(
+      window.CourseSnagCloud?.initialize({
+        replaceLocalTrackers,
+        initialAlertMode: state.alertMode,
+        cloudSetupRequested: discordSetupRequested
+      })
+    ).catch(error => {
+      console.error('Cloud initialization failed:', error);
     });
+
+    // Cornell search data is independent of Cloud account setup, so load both in parallel.
+    await loadRosters();
+
+    // Local search and refresh can become usable without waiting for Cloud requests.
+    els.refreshBtn.disabled = false;
+    startPolling();
+
+    await cloudInitialization;
     if (discordSetupRequested) {
       setupParams.delete('setup');
       const remainingQuery = setupParams.toString();
@@ -1660,11 +1777,6 @@
       );
       openSettings(true);
     }
-    await loadRosters();
-
-    // Enable refresh button and start polling
-    els.refreshBtn.disabled = false;
-    startPolling();
 
     // Show alerts for any open tracked sections (after page reload)
     showAlertsForOpenSections();

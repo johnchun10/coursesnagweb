@@ -75,10 +75,6 @@ body {
   margin-bottom: 0;
 }
 
-.logo-subtitle {
-  line-height: 1.2;
-}
-
 .header-meta {
   display: flex;
   min-width: 0;
@@ -257,7 +253,7 @@ input[type='text']::placeholder {
 .quick-subject {
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .quick-subject:hover {
@@ -273,10 +269,6 @@ input[type='text']::placeholder {
 
 .status-message.error {
   color: var(--closed);
-}
-
-.status-message.loading {
-  color: var(--cornell);
 }
 
 .results-list {
@@ -453,10 +445,6 @@ input[type='text']::placeholder {
   text-align: right;
 }
 
-.status-indicator.loading {
-  color: var(--cornell);
-}
-
 .status-indicator.error {
   color: var(--closed);
 }
@@ -509,7 +497,7 @@ input[type='text']::placeholder {
   color: #7a4c38;
   font-size: 1rem;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .btn-remove:hover {
@@ -824,12 +812,6 @@ body {
   line-height: 0.98;
 }
 
-.logo-subtitle {
-  margin-top: 0.28rem;
-  color: var(--ink-muted);
-  font-size: 0.76rem;
-}
-
 .header-meta {
   position: relative;
   grid-area: meta;
@@ -975,27 +957,9 @@ body {
   align-items: center;
 }
 
-.cloud-signin-wrap {
-  min-width: 210px;
-  min-height: 40px;
-}
-
 .cloud-profile {
   gap: 0.48rem;
   min-width: 0;
-}
-
-.cloud-avatar {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--paper-strong);
-}
-
-.cloud-avatar:not([src]) {
-  display: none;
 }
 
 .cloud-profile-copy {
@@ -1477,7 +1441,7 @@ input[type='text']:focus {
 }
 
 .footer-settings-btn[data-mode='unavailable']::before {
-  border: 1px solid var(--closed);
+  border: 1px solid var(--line-strong);
   background: transparent;
 }
 
@@ -1495,7 +1459,7 @@ input[type='text']:focus {
 
 .settings-dialog {
   width: min(800px, calc(100vw - 2rem));
-  height: min(560px, calc(100dvh - 2rem));
+  height: min(660px, calc(100dvh - 2rem));
   max-width: none;
   max-height: calc(100dvh - 2rem);
   margin: auto;
@@ -1590,8 +1554,21 @@ input[type='text']:focus {
   background: #f7f5f0;
 }
 
+.settings-dialog.is-browser-only .settings-sheet-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-dialog.is-browser-only .browser-settings-view {
+  margin-block: auto;
+}
+
 .settings-view {
   padding: 1.35rem;
+}
+
+.settings-view[hidden] {
+  display: none;
 }
 
 .mode-choice-view {
@@ -1773,17 +1750,8 @@ input[type='text']:focus {
   margin-top: 0.1rem;
 }
 
-.mode-detail-heading > span {
-  color: var(--cornell);
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .mode-detail-heading h3 {
-  margin-top: 0.18rem;
+  margin-top: 0;
   font-family: var(--font-display);
   font-size: 2rem;
   font-weight: 600;
@@ -1808,6 +1776,17 @@ input[type='text']:focus {
   background: transparent;
   padding: 0;
   color: var(--ink-muted);
+}
+
+.mode-detail-heading .browser-alerts-disclaimer {
+  max-width: 70ch;
+  margin-top: 0.5rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
 }
 
 .mode-detail-content {
@@ -1939,7 +1918,12 @@ input[type='text']:focus {
 
 #cloud-settings-view {
   width: min(100%, 680px);
-  padding-block: 0.8rem 0.65rem;
+  padding-block: 1rem 0.65rem;
+}
+
+.browser-settings-view {
+  width: min(100%, 680px);
+  padding-block: 0.8rem 1.15rem;
 }
 
 #cloud-settings-view .mode-detail-content {
@@ -1955,6 +1939,35 @@ input[type='text']:focus {
   align-content: center;
   border: 0;
   padding: 1rem;
+}
+
+#cloud-settings-view.is-inactive .mode-detail-heading,
+#cloud-settings-view.is-checking .mode-detail-heading {
+  opacity: 0.64;
+}
+
+#cloud-settings-view.is-inactive .cloud-setup-instruction {
+  display: none;
+}
+
+#cloud-settings-view.is-inactive .mode-detail-content,
+#cloud-settings-view.is-checking .mode-detail-content {
+  grid-template-columns: 1fr;
+  border-color: #cfcbc3;
+  background: #ece9e3;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+#cloud-settings-view.is-inactive .mode-detail-content .cloud-mode-block,
+#cloud-settings-view.is-checking .mode-detail-content .cloud-mode-block {
+  min-height: 86px;
+  color: #77736c;
+  filter: grayscale(1);
+}
+
+#cloud-settings-view.is-inactive .cloud-mode-copy span,
+#cloud-settings-view.is-checking .cloud-mode-copy span {
+  color: #77736c;
 }
 
 .discord-cloud-account {
@@ -1973,11 +1986,6 @@ input[type='text']:focus {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-.mode-detail-content .cloud-signin-wrap {
-  min-width: 0;
-  min-height: 40px;
 }
 
 .mode-detail-content .cloud-profile {

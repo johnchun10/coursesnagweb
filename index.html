@@ -81,7 +81,7 @@
 
         <div id="tab-open-notice" class="tab-open-notice hidden" role="status" aria-live="polite">
           <span class="tab-open-indicator" aria-hidden="true"></span>
-          <span id="tab-open-notice-text">Keep this tab open for local alerts.</span>
+          <span id="tab-open-notice-text">Keep this tab open for browser alerts.</span>
         </div>
 
         <div id="tracked-list" class="tracked-list">
@@ -122,96 +122,46 @@
 
       <div class="settings-sheet-body">
         <section id="mode-choice-view" class="settings-view mode-choice-view" aria-labelledby="settings-title">
-          <div class="mode-choice-grid" role="group" aria-label="Alert mode">
-            <button id="choose-local-mode" class="mode-choice-card" type="button" data-choice="local">
-              <span class="mode-choice-topline">
-                <span class="mode-choice-number">01 / LOCAL</span>
-                <span class="mode-choice-availability available">
-                  <span aria-hidden="true"></span>
-                  Available
-                </span>
-              </span>
-              <strong>Local</strong>
-              <span class="mode-choice-description">Keep this tab open and the computer on to receive alerts.</span>
-              <span class="mode-choice-bottomline">
-                <span class="mode-current-label" data-current-mode="local" hidden>Current mode</span>
-                <span class="mode-choice-action">Select</span>
-              </span>
-            </button>
-
+          <div class="mode-choice-grid" role="group" aria-label="Alert delivery">
             <button id="choose-cloud-mode" class="mode-choice-card" type="button" data-choice="cloud" disabled>
               <span class="mode-choice-topline">
-                <span class="mode-choice-number">02 / CLOUD</span>
+                <span class="mode-choice-number">01 / CLOUD</span>
                 <span id="cloud-option-status" class="mode-choice-availability checking">
                   <span aria-hidden="true"></span>
                   <span id="cloud-option-status-text">Checking</span>
                 </span>
               </span>
-              <strong>Cloud</strong>
-              <span class="mode-choice-description">CourseSnag monitors the watchlist in the cloud and sends alerts through Discord.</span>
+              <strong>Cloud Alerts</strong>
+              <span class="mode-choice-description">Via Discord notifications.</span>
               <span class="mode-requirement">Requires Discord and a server</span>
               <span class="mode-choice-bottomline">
-                <span class="mode-current-label" data-current-mode="cloud" hidden>Current mode</span>
+                <span class="mode-current-label" data-current-mode="cloud" hidden>Current setup</span>
                 <span id="cloud-option-action" class="mode-choice-action">Checking availability</span>
+              </span>
+            </button>
+
+            <button id="choose-local-mode" class="mode-choice-card" type="button" data-choice="local">
+              <span class="mode-choice-topline">
+                <span class="mode-choice-number">02 / BROWSER</span>
+                <span class="mode-choice-availability available">
+                  <span aria-hidden="true"></span>
+                  Available
+                </span>
+              </span>
+              <strong>Browser Alerts</strong>
+              <span class="mode-choice-description">Via browser notifications.</span>
+              <span class="mode-requirement">Computer must be on and tab kept open</span>
+              <span class="mode-choice-bottomline">
+                <span class="mode-current-label" data-current-mode="local" hidden>Current setup</span>
+                <span class="mode-choice-action">Select</span>
               </span>
             </button>
           </div>
         </section>
 
-        <section id="local-settings-view" class="settings-view mode-detail-view" aria-labelledby="local-alerts-title" hidden>
-          <div class="mode-detail-heading">
-            <span>Local</span>
-            <h3 id="local-alerts-title">Local settings</h3>
-            <p>Keep this tab open and the computer on to receive local alerts.</p>
-          </div>
-
-          <div class="mode-detail-content">
-            <div class="preference-row">
-              <div class="preference-name">
-                <strong>Sound</strong>
-              </div>
-              <div class="preference-controls">
-                <label class="switch-control">
-                  <input type="checkbox" id="sound-toggle">
-                  <span aria-hidden="true"></span>
-                  <span class="sr-only">Enable sound alerts</span>
-                </label>
-                <button id="test-sound-btn" class="btn btn-small btn-secondary" type="button">Test</button>
-              </div>
-            </div>
-
-            <div class="preference-row">
-              <div class="preference-name">
-                <strong>Browser notifications</strong>
-                <span id="notify-status" class="notify-status"></span>
-              </div>
-              <div class="preference-controls">
-                <label class="switch-control">
-                  <input type="checkbox" id="notify-toggle">
-                  <span aria-hidden="true"></span>
-                  <span class="sr-only">Enable browser notifications</span>
-                </label>
-                <button id="test-notify-btn" class="btn btn-small btn-secondary" type="button">Test</button>
-              </div>
-            </div>
-
-            <div class="preference-block">
-              <span class="settings-label">Refresh interval</span>
-              <div class="segmented" id="polling-segmented" role="radiogroup" aria-label="Refresh interval">
-                <div class="segment-indicator" aria-hidden="true"></div>
-                <button class="segment-btn" type="button" data-interval="10" aria-pressed="false">10s</button>
-                <button class="segment-btn" type="button" data-interval="30" aria-pressed="false">30s</button>
-                <button class="segment-btn" type="button" data-interval="60" aria-pressed="false">60s</button>
-                <button class="segment-btn" type="button" data-interval="300" aria-pressed="false">5m</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section id="cloud-settings-view" class="settings-view mode-detail-view" aria-labelledby="cloud-settings-title" hidden>
           <div class="mode-detail-heading">
-            <span>Cloud</span>
-            <h3 id="cloud-settings-title">Cloud settings</h3>
+            <h3 id="cloud-settings-title">Cloud Alerts</h3>
             <p class="cloud-setup-instruction">Connect Discord, select a server where you can add apps, and allow direct messages from server members.</p>
           </div>
 
@@ -250,12 +200,60 @@
             </section>
           </div>
         </section>
+
+        <section id="local-settings-view" class="settings-view mode-detail-view browser-settings-view" aria-labelledby="local-alerts-title" hidden>
+          <div class="mode-detail-heading">
+            <h3 id="local-alerts-title">In-browser</h3>
+            <p class="browser-alerts-disclaimer">Keep computer awake and this tab open.</p>
+          </div>
+
+          <div class="mode-detail-content">
+            <div class="preference-row">
+              <div class="preference-name">
+                <strong>Sound</strong>
+              </div>
+              <div class="preference-controls">
+                <label class="switch-control">
+                  <input type="checkbox" id="sound-toggle">
+                  <span aria-hidden="true"></span>
+                  <span class="sr-only">Enable sound alerts</span>
+                </label>
+                <button id="test-sound-btn" class="btn btn-small btn-secondary" type="button">Test</button>
+              </div>
+            </div>
+
+            <div class="preference-row">
+              <div class="preference-name">
+                <strong>Browser notifications</strong>
+                <span id="notify-status" class="notify-status"></span>
+              </div>
+              <div class="preference-controls">
+                <label class="switch-control">
+                  <input type="checkbox" id="notify-toggle">
+                  <span aria-hidden="true"></span>
+                  <span class="sr-only">Enable browser notifications</span>
+                </label>
+                <button id="test-notify-btn" class="btn btn-small btn-secondary" type="button">Test</button>
+              </div>
+            </div>
+
+            <div class="preference-block">
+              <span class="settings-label">Browser refresh interval</span>
+              <div class="segmented" id="polling-segmented" role="radiogroup" aria-label="Browser refresh interval">
+                <div class="segment-indicator" aria-hidden="true"></div>
+                <button class="segment-btn" type="button" data-interval="300" aria-pressed="false">5m</button>
+                <button class="segment-btn" type="button" data-interval="600" aria-pressed="false">10m</button>
+                <button class="segment-btn" type="button" data-interval="900" aria-pressed="false">15m</button>
+                <button class="segment-btn" type="button" data-interval="1200" aria-pressed="false">20m</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <footer class="settings-sheet-footer">
-        <span id="settings-footer-note">Select a mode to continue.</span>
+        <span id="settings-footer-note">Choose how CourseSnag should alert you.</span>
         <div class="settings-footer-actions">
-          <button id="settings-switch-mode-btn" class="btn btn-secondary" type="button" hidden>Switch mode</button>
           <button id="settings-done-btn" class="btn btn-primary" type="button" disabled>Continue</button>
         </div>
       </footer>

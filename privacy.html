@@ -4,147 +4,99 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy | CourseSnag</title>
-  <meta name="description" content="How CourseSnag handles local tracker data, Discord account information, and cloud watchlists.">
+  <meta name="description" content="How CourseSnag handles browser tracker data, Discord account information, and cloud watchlists.">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-cornell-32.png?v=3">
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-cornell-16.png?v=3">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="legal.css">
 </head>
-<body class="legal-page">
-  <div class="legal-shell">
-    <header class="legal-header">
-      <a class="legal-brand" href="index.html" aria-label="CourseSnag home">CourseSnag</a>
-      <span class="legal-header-label">Policies / 01</span>
-      <a class="legal-back" href="index.html">Back to tracker</a>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">CourseSnag</a>
+    <nav aria-label="Legal pages">
+      <a aria-current="page" href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </header>
+
+  <main class="legal-document">
+    <header class="document-header">
+      <h1>Privacy Policy</h1>
+      <p class="effective-date">Effective August 12, 2026</p>
+      <p>Browser Alerts keep tracking data on your device. Cloud Alerts store only the account and course information needed to synchronize your watchlist and send Discord notifications.</p>
     </header>
 
-    <main class="legal-main">
-      <section class="legal-masthead">
-        <span class="legal-kicker">Effective August 12, 2026</span>
-        <h1>Privacy<br>Policy</h1>
-        <p>CourseSnag keeps Local tracking on your device. Cloud tracking stores only the account and course information needed to synchronize your watchlist and deliver Discord alerts.</p>
+    <article>
+      <section>
+        <h2>Scope</h2>
+        <p>This policy covers the CourseSnag website, cloud service, and Discord application. CourseSnag is an independent personal project and is not operated by Cornell University or Discord.</p>
       </section>
 
-      <aside class="legal-rail" aria-label="Privacy policy summary">
-        <p class="legal-rail-label">At a glance</p>
-        <dl>
-          <div>
-            <dt>Local mode</dt>
-            <dd>Browser only</dd>
-          </div>
-          <div>
-            <dt>Cloud identity</dt>
-            <dd>Discord</dd>
-          </div>
-          <div>
-            <dt>Advertising</dt>
-            <dd>None</dd>
-          </div>
-          <div>
-            <dt>Data sales</dt>
-            <dd>Never</dd>
-          </div>
-        </dl>
-        <nav class="legal-section-nav" aria-label="On this page">
-          <a href="#information">Information</a>
-          <a href="#use">How it is used</a>
-          <a href="#services">Service providers</a>
-          <a href="#retention">Retention</a>
-          <a href="#choices">Your choices</a>
-          <a href="#contact">Contact</a>
-        </nav>
-      </aside>
+      <section>
+        <h2>Information CourseSnag handles</h2>
+        <h3>Browser data</h3>
+        <p>For Browser Alerts, your watchlist, alert preferences, delivery choice, and recent course statuses are stored in your browser. This data is not uploaded to the CourseSnag cloud service unless you connect Cloud Alerts.</p>
 
-      <article class="legal-article">
-        <section>
-          <span class="legal-section-number">01</span>
-          <h2>Scope</h2>
-          <p>This policy describes information handled by the CourseSnag website, cloud service, and Discord application. CourseSnag is an independent personal project and is not operated by Cornell University or Discord.</p>
-        </section>
+        <h3>Discord account data</h3>
+        <p>When you connect Discord, CourseSnag requests Discord's <code>identify</code> permission and asks you to install its bot and application commands in a server you select. The bot requests no server permissions. CourseSnag stores your Discord user ID, username, display name, avatar identifier, connection time, and recent activity time. It does not store the selected server ID or request your Discord email address or password.</p>
 
-        <section id="information">
-          <span class="legal-section-number">02</span>
-          <h2>Information CourseSnag handles</h2>
-          <h3>Local tracking data</h3>
-          <p>In Local mode, your watchlist, alert preferences, selected mode, and recent course statuses are stored in your browser. Local tracking data is not uploaded to the CourseSnag cloud service.</p>
+        <h3>Cloud watchlist data</h3>
+        <p>Cloud Alerts store the courses you track, including the roster term, subject, course and section identifiers, title, meeting details, last observed enrollment status, and check timestamps. When Discord is connected, the cloud watchlist becomes the source of truth for that browser.</p>
 
-          <h3>Discord account data</h3>
-          <p>When you connect Discord, CourseSnag requests Discord’s <code>identify</code> permission and asks you to install its bot and application commands in a server you select. The bot requests no server permissions. CourseSnag stores your Discord user ID, username, display name, avatar identifier, connection time, and recent activity time; it does not store the selected server ID or request your Discord email address or password.</p>
+        <h3>Security and operations data</h3>
+        <p>CourseSnag creates short-lived authorization records, hashed session records, command cooldown records, service health metrics, and limited operational logs. Hosting providers may also process standard network information such as IP addresses, request times, browser details, and errors.</p>
+      </section>
 
-          <h3>Cloud watchlist data</h3>
-          <p>Cloud mode stores the courses you track, including roster term, subject, course and section identifiers, title, meeting details, last observed enrollment status, and check timestamps. Connecting a Discord account makes the cloud watchlist authoritative for that browser.</p>
+      <section>
+        <h2>How information is used</h2>
+        <p>CourseSnag uses information to:</p>
+        <ul>
+          <li>authenticate your Discord account;</li>
+          <li>save and synchronize your cloud watchlist;</li>
+          <li>check Cornell course availability;</li>
+          <li>send connection, availability, and seasonal-status messages through Discord; and</li>
+          <li>operate, secure, troubleshoot, and measure the reliability of the service.</li>
+        </ul>
+        <p>CourseSnag does not sell personal information, run advertising, or use watchlists to build advertising profiles.</p>
+      </section>
 
-          <h3>Security and operations data</h3>
-          <p>CourseSnag creates short-lived authorization records, hashed session records, command cooldown records, service health metrics, and limited operational logs. Hosting providers may also process standard network information such as IP addresses, request times, browser details, and error information.</p>
-        </section>
+      <section>
+        <h2>Service providers and disclosures</h2>
+        <p>CourseSnag relies on Cloudflare for website delivery, Amazon Web Services for cloud processing and storage, Discord for identity and direct messages, and Cornell Class Roster for course information. These providers process information under their own terms and privacy policies.</p>
+        <p>Information may also be disclosed when reasonably necessary to comply with law, protect users, investigate abuse, or defend CourseSnag's security. It is not otherwise shared for another party's marketing.</p>
+      </section>
 
-        <section id="use">
-          <span class="legal-section-number">03</span>
-          <h2>How information is used</h2>
-          <p>CourseSnag uses this information only to:</p>
-          <ul>
-            <li>authenticate your Discord account;</li>
-            <li>save and synchronize your cloud watchlist;</li>
-            <li>check Cornell course availability;</li>
-            <li>send connection, availability, and seasonal-status messages through Discord;</li>
-            <li>operate, secure, troubleshoot, and measure the reliability of the service.</li>
-          </ul>
-          <p>CourseSnag does not sell personal information, run advertising, or use watchlists to build advertising profiles.</p>
-        </section>
+      <section>
+        <h2>Retention</h2>
+        <ul>
+          <li>Discord OAuth state expires after approximately 10 minutes.</li>
+          <li>Single-use CourseSnag login codes expire after approximately 2 minutes.</li>
+          <li>Cloud sessions expire after approximately 30 days or when you sign out.</li>
+          <li>Operational application logs are configured to expire after 7 days.</li>
+          <li>Cloud profiles and watchlists remain stored until they are deleted at your request or the service is discontinued.</li>
+          <li>Browser data remains until you remove it or clear the browser's site data.</li>
+        </ul>
+        <p>Signing out revokes the browser session but does not automatically delete the cloud watchlist.</p>
+      </section>
 
-        <section id="services">
-          <span class="legal-section-number">04</span>
-          <h2>Service providers and disclosures</h2>
-          <p>CourseSnag relies on Cloudflare for website delivery, Amazon Web Services for cloud processing and storage, Discord for identity and direct messages, Google Fonts for web typography, and Cornell Class Roster for course information. Those providers process information under their own terms and privacy policies.</p>
-          <p>Information may also be disclosed when reasonably necessary to comply with law, protect users, investigate abuse, or defend the security and integrity of CourseSnag. It is not otherwise shared for another party’s marketing.</p>
-        </section>
+      <section>
+        <h2>Your choices</h2>
+        <p>You can use Browser Alerts without connecting Discord. You can sign out, remove tracked courses, clear browser storage, or revoke CourseSnag from Discord's Authorized Apps settings. Revoking Discord authorization does not by itself erase records already stored by CourseSnag.</p>
+        <p>To request access to or deletion of your cloud profile and watchlist, contact the CourseSnag project operator through the shared CourseSnag Discord server used for alerts. Reasonable verification may be required.</p>
+      </section>
 
-        <section id="retention">
-          <span class="legal-section-number">05</span>
-          <h2>Retention</h2>
-          <ul>
-            <li>Discord OAuth state expires after approximately 10 minutes.</li>
-            <li>Single-use CourseSnag login codes expire after approximately 2 minutes.</li>
-            <li>Cloud sessions expire after approximately 30 days or when you sign out.</li>
-            <li>Operational application logs are configured to expire after 7 days.</li>
-            <li>Cloud profiles and watchlists remain stored until they are deleted at your request or the service is discontinued.</li>
-            <li>Local data remains in your browser until you remove it or clear that browser’s site data.</li>
-          </ul>
-          <p>Signing out revokes the browser session; it does not automatically delete the cloud watchlist.</p>
-        </section>
+      <section>
+        <h2>Security and age</h2>
+        <p>CourseSnag uses encrypted service connections, encrypted cloud storage, short-lived OAuth records, hashed session tokens, access controls, and limited log retention. No online service can guarantee absolute security.</p>
+        <p>CourseSnag is not directed to children under 13. Do not use Cloud Alerts if you are not permitted to use Discord or provide the information described in this policy.</p>
+      </section>
 
-        <section id="choices">
-          <span class="legal-section-number">06</span>
-          <h2>Your choices</h2>
-          <p>You can use Local mode without connecting a Discord account. You can sign out of CourseSnag, remove tracked courses, clear browser storage, or revoke CourseSnag from Discord’s Authorized Apps settings. Revoking Discord authorization does not by itself erase records already stored by CourseSnag.</p>
-          <p>To request access to or deletion of your cloud profile and watchlist, contact the CourseSnag project operator through the shared CourseSnag Discord server used for alerts. Reasonable verification may be required before account data is disclosed or deleted.</p>
-        </section>
+      <section>
+        <h2>Changes and contact</h2>
+        <p>This policy may be updated as CourseSnag changes. Material revisions will be shown with a new effective date. Questions and privacy requests can be directed to the CourseSnag project operator through the shared CourseSnag Discord server.</p>
+      </section>
+    </article>
 
-        <section>
-          <span class="legal-section-number">07</span>
-          <h2>Security and age</h2>
-          <p>CourseSnag uses encrypted service connections, encrypted cloud storage, short-lived OAuth records, hashed session tokens, access controls, and limited log retention. No online service can guarantee absolute security.</p>
-          <p>CourseSnag is not directed to children under 13. Do not use the cloud service if you are not permitted to use Discord or provide the information described in this policy.</p>
-        </section>
-
-        <section id="contact">
-          <span class="legal-section-number">08</span>
-          <h2>Changes and contact</h2>
-          <p>This policy may be updated as CourseSnag changes. Material revisions will be reflected by a new effective date on this page. Questions and privacy requests can be directed to the CourseSnag project operator through the shared CourseSnag Discord server.</p>
-        </section>
-      </article>
-    </main>
-
-    <footer class="legal-footer">
-      <span>CourseSnag / Cornell course alerts</span>
-      <nav aria-label="Policies">
-        <a aria-current="page" href="privacy.html">Privacy</a>
-        <a href="terms.html">Terms</a>
-      </nav>
-    </footer>
-  </div>
+    <p class="back-link"><a href="index.html">Back to CourseSnag</a></p>
+  </main>
 </body>
 </html>

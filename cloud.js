@@ -5,6 +5,7 @@
   const config = window.COURSESNAG_CONFIG || {};
   const SESSION_KEY = 'csw.discordSession';
   const LEGACY_GOOGLE_KEY = 'csw.googleCredential';
+  const REQUEST_TIMEOUT_MS = 12000;
 
   const state = {
     mode: 'checking',
@@ -26,11 +27,12 @@
   }
 
   function publicState() {
+    const signedIn = isSignedIn();
     return {
       mode: state.mode,
-      signedIn: isSignedIn(),
+      signedIn,
       syncing: state.syncing,
-      discordConnected: isSignedIn()
+      discordConnected: signedIn
     };
   }
 
@@ -46,27 +48,27 @@
     state.els.syncStatus.className = `cloud-sync-status${type ? ` ${type}` : ''}`;
   }
 
-  function renderMode() {
+  function renderMode(shouldAnnounce = true) {
     const mode = state.mode;
     state.els.modeBadge.dataset.mode = mode;
 
     if (mode === 'cloud') {
       state.els.modeTitle.textContent = 'Cloud active';
-      state.els.modeDescription.textContent = 'Monitoring is enabled.';
+      state.els.modeDescription.textContent = 'Discord monitoring is enabled.';
     } else if (mode === 'unavailable') {
-      state.els.modeTitle.textContent = 'Cloud unavailable';
-      state.els.modeDescription.textContent = 'Monitoring status is unavailable.';
+      state.els.modeTitle.textContent = 'Cloud inactive';
+      state.els.modeDescription.textContent = 'Cloud Alerts are unavailable right now.';
     } else if (mode === 'checking') {
       state.els.modeTitle.textContent = 'Checking cloud status';
       state.els.modeDescription.textContent = 'Checking monitoring status.';
     } else {
       state.els.modeTitle.textContent = 'Cloud inactive';
-      state.els.modeDescription.textContent = 'Monitoring is paused.';
+      state.els.modeDescription.textContent = 'Cloud Alerts are not running.';
     }
-    announceState();
+    if (shouldAnnounce) announceState();
   }
 
-  function renderAccount() {
+  function renderAccount(shouldAnnounce = true) {
     const hasSession = Boolean(state.sessionToken);
     const connected = isSignedIn();
     const discord = state.profile?.discord;
@@ -93,7 +95,7 @@
     state.els.discordButton.disabled = state.discordBusy;
     state.els.signOutButton.hidden = !hasSession;
     state.els.signOutButton.disabled = state.discordBusy;
-    announceState();
+    if (shouldAnnounce) announceState();
   }
 
   function restoreSession() {
@@ -125,27 +127,42 @@
     }
     if (options.body) headers['content-type'] = 'application/json';
 
-    const response = await fetch(`${config.apiBaseUrl}${path}`, {
-      ...options,
-      headers
-    });
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
 
-    if (authenticated && response.status === 401) {
-      clearSession('The Discord session expired. Connect Discord again.');
-      throw new Error('Discord session expired.');
-    }
-    if (!response.ok) {
-      let message = `Cloud service returned HTTP ${response.status}`;
-      try {
-        const payload = await response.json();
-        if (payload.error) message = payload.error;
-      } catch {
-        // Keep the HTTP status message.
+    try {
+      const response = await fetch(`${config.apiBaseUrl}${path}`, {
+        ...options,
+        headers,
+        signal: controller.signal
+      });
+
+      if (authenticated && response.status === 401) {
+        clearSession('The Discord session expired. Connect Discord again.');
+        throw new Error('Discord session expired.');
       }
-      throw new Error(message);
+      if (!response.ok) {
+        let message = `Cloud service returned HTTP ${response.status}`;
+        try {
+          const payload = await response.json();
+          if (payload.error) message = payload.error;
+        } catch {
+          // Keep the HTTP status message.
+        }
+        throw new Error(message);
+      }
+      if (response.status === 204) return null;
+      return await response.json();
+    } catch (error) {
+      if (timedOut) throw new Error('Cloud service request timed out.');
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    if (response.status === 204) return null;
-    return response.json();
   }
 
   function publicFetch(path, options = {}) {
@@ -196,9 +213,11 @@
     setSyncStatus('Loading your cloud watchlist…', 'working');
 
     try {
-      const profilePayload = await cloudFetch('/me');
-      state.profile = profilePayload.profile;
-      renderAccount();
+      if (!state.profile) {
+        const profilePayload = await cloudFetch('/me');
+        state.profile = profilePayload.profile;
+        renderAccount(false);
+      }
 
       const cloudPayload = await cloudFetch('/trackers');
       state.adapter.replaceLocalTrackers(cloudPayload.trackers || []);
@@ -215,7 +234,7 @@
   async function startDiscordSignIn() {
     if (state.discordBusy || state.sessionToken) return;
     state.discordBusy = true;
-    renderAccount();
+    renderAccount(false);
     setSyncStatus('Opening Discord authorization…', 'working');
 
     try {
@@ -229,14 +248,14 @@
       console.error('Discord sign-in failed:', error);
       setSyncStatus(error.message, 'error');
       state.discordBusy = false;
-      renderAccount();
+      renderAccount(false);
     }
   }
 
   async function signOut() {
     if (state.discordBusy) return;
     state.discordBusy = true;
-    renderAccount();
+    renderAccount(false);
     try {
       if (state.sessionToken) await cloudFetch('/session', { method: 'DELETE' });
     } catch (error) {
@@ -258,7 +277,7 @@
     window.history.replaceState({}, '', `${current.pathname}${current.search}${current.hash}`);
 
     let finalResult = result;
-    renderAccount();
+    renderAccount(false);
     try {
       if (result === 'connected') {
         if (!code) throw new Error('Discord login response was incomplete.');
@@ -273,14 +292,13 @@
         state.sessionToken = payload.sessionToken;
         state.profile = payload.profile;
         localStorage.setItem(SESSION_KEY, payload.sessionToken);
-        renderAccount();
+        renderAccount(false);
         setSyncStatus('Discord connected. Loading your cloud watchlist…', 'success');
         await syncNow();
       } else if (result === 'cancelled') {
-        renderAccount();
+        renderAccount(false);
         setSyncStatus('Discord sign-in was canceled.');
       } else if (result === 'delivery-unavailable') {
-        finalResult = result;
         clearSession();
         setSyncStatus(
           'Discord blocked the confirmation direct message. Enable direct messages from server members, and then try again.',
@@ -343,8 +361,8 @@
     state.els.signOutButton.addEventListener('click', signOut);
     state.els.discordButton.addEventListener('click', startDiscordSignIn);
     restoreSession();
-    renderMode();
-    renderAccount();
+    renderMode(false);
+    renderAccount(false);
 
     const shouldCheckMode = state.adapter?.initialAlertMode !== 'local'
       || state.adapter?.cloudSetupRequested;
