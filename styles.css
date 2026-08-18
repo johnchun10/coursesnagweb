@@ -1999,10 +1999,10 @@ input[type='text']:focus {
 }
 
 #cloud-settings-view .mode-detail-content .cloud-mode-block {
-  min-height: 124px;
+  min-height: 92px;
   align-content: center;
   border: 0;
-  padding: 1rem;
+  padding: 0.85rem 1rem;
 }
 
 #cloud-settings-view.is-inactive .mode-detail-heading,
@@ -2038,17 +2038,19 @@ input[type='text']:focus {
   display: flex;
   min-width: 0;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 0.58rem;
+  gap: 0.4rem;
   border-left: 1px solid var(--line);
-  padding: 1rem;
+  padding: 0.85rem 1rem;
 }
 
 .cloud-account-body {
   display: flex;
-  min-height: 54px;
+  width: 100%;
+  min-height: 0;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 0.75rem;
 }
 
@@ -2070,6 +2072,7 @@ input[type='text']:focus {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
 }
 
