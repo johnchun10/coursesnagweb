@@ -48,6 +48,31 @@ export function normalizeTrackerInput(input) {
   return tracker;
 }
 
+export function normalizeTrackerCountQuery(query = {}) {
+  const roster = normalizedString(query.roster, 80).toUpperCase();
+  const subject = normalizedString(query.subject, 16).toUpperCase();
+  const rawClassNbrs = normalizedString(query.classNbrs || query.classNbr, 1600);
+
+  if (!roster || !subject || !rawClassNbrs) {
+    throw new Error('Missing required tracker-count query parameters.');
+  }
+  if (!/^[A-Z0-9_-]+$/.test(roster) || !/^[A-Z0-9_-]+$/.test(subject)) {
+    throw new Error('Tracker-count query contains unsupported characters.');
+  }
+
+  const classNbrs = [...new Set(
+    rawClassNbrs.split(',').map(value => value.trim()).filter(Boolean)
+  )];
+  if (!classNbrs.length || classNbrs.some(value => !/^\d+$/.test(value))) {
+    throw new Error('Tracker-count class numbers must contain only digits.');
+  }
+  if (classNbrs.length > 100) {
+    throw new Error('Tracker-count queries support at most 100 sections.');
+  }
+
+  return { roster, subject, classNbrs };
+}
+
 export function groupTrackersByRosterSubject(trackers) {
   const groups = new Map();
   for (const tracker of trackers) {

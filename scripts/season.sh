@@ -26,6 +26,7 @@ stack_output() {
 RULE_NAME="$(stack_output MonitorRuleName)"
 MODE_PARAMETER="$(stack_output ModeParameterName)"
 OPERATIONS_FUNCTION="$(stack_output OperationsFunctionName)"
+MONITOR_FUNCTION="$(stack_output MonitorFunctionName)"
 ACTION="${1:-status}"
 
 current_mode() {
@@ -67,7 +68,7 @@ show_status() {
   local api_function monitor_function notifier_function interactions_function operations_function
   local api_health health_code health_seconds
   local tracker_count account_json account_count daily_active_users queue_json pending in_flight delayed dead_letters
-  local monitor_json monitor_status monitor_completed monitor_checked monitor_groups monitor_failed_groups monitor_alerts monitor_removed
+  local monitor_json monitor_status monitor_completed monitor_checked monitor_groups monitor_processed monitor_deferred monitor_failed_groups monitor_alerts monitor_removed monitor_interval
   local end_time start_time metric_queries metric_data
   local budget_json budget_limit actual_spend forecast_spend
 
@@ -91,7 +92,7 @@ show_status() {
     *) mode_label="OFFLINE" ;;
   esac
   if [[ "$rule_state" == "ENABLED" ]]; then
-    schedule_label="Enabled (once per minute)"
+    schedule_label="Enabled (adaptive 5/10/30-minute Cornell polling)"
   else
     schedule_label="Disabled"
   fi
@@ -161,9 +162,12 @@ show_status() {
   monitor_completed="$(jq -r '.Item.completedAt.S // empty' <<<"$monitor_json")"
   monitor_checked="$(jq -r '.Item.checked.N // "0"' <<<"$monitor_json")"
   monitor_groups="$(jq -r '.Item.groups.N // "0"' <<<"$monitor_json")"
+  monitor_processed="$(jq -r '.Item.processedGroups.N // "0"' <<<"$monitor_json")"
+  monitor_deferred="$(jq -r '.Item.deferredGroups.N // "0"' <<<"$monitor_json")"
   monitor_failed_groups="$(jq -r '.Item.failedGroups.N // "0"' <<<"$monitor_json")"
   monitor_alerts="$(jq -r '.Item.alertsQueued.N // "0"' <<<"$monitor_json")"
   monitor_removed="$(jq -r '.Item.removed.N // "0"' <<<"$monitor_json")"
+  monitor_interval="$(jq -r '.Item.intervalMinutes.N // "0"' <<<"$monitor_json")"
 
   metric_queries="$(jq -nc \
     --arg api "$api_function" \
@@ -222,14 +226,17 @@ show_status() {
     echo "  API: Unavailable${health_code:+ (HTTP $health_code)}"
   fi
   echo
-  echo "Cloud data"
+  echo "Discord data"
   echo "  Linked Discord accounts: $account_count"
   echo "  Active trackers: $tracker_count"
   if [[ -n "$monitor_completed" ]]; then
     echo "  Last monitor run: $monitor_completed"
-    echo "    Status: $monitor_status | Checked: $monitor_checked | Groups: $monitor_groups | Failed groups: $monitor_failed_groups | Removed: $monitor_removed | Alerts queued: $monitor_alerts"
-    if [[ "$monitor_status" == "degraded" ]]; then
-      echo "    Attention: At least one Cornell roster/subject group could not be checked."
+    echo "    Status: $monitor_status | Interval: ${monitor_interval}m | Checked: $monitor_checked | Groups: $monitor_processed/$monitor_groups | Deferred: $monitor_deferred | Failed: $monitor_failed_groups | Removed: $monitor_removed | Alerts queued: $monitor_alerts"
+    if [[ "$monitor_failed_groups" =~ ^[0-9]+$ ]] && (( monitor_failed_groups > 0 )); then
+      echo "    Attention: At least one Cornell roster/subject group failed."
+    fi
+    if [[ "$monitor_deferred" =~ ^[0-9]+$ ]] && (( monitor_deferred > 0 )); then
+      echo "    Attention: The next run will rotate to the deferred groups first."
     fi
   else
     echo "  Last monitor run: No detailed run recorded yet"
@@ -276,6 +283,20 @@ announce_season_status() {
     "$result_file" >/dev/null
   cat "$result_file"
   echo
+  rm -f "$result_file"
+}
+
+invoke_monitor_now() {
+  local result_file
+  result_file="$(mktemp)"
+  aws lambda invoke \
+    --function-name "$MONITOR_FUNCTION" \
+    --invocation-type Event \
+    --cli-binary-format raw-in-base64-out \
+    --payload '{"force":true,"trigger":"discord-active-start"}' \
+    --region "$AWS_REGION" \
+    --profile "$AWS_PROFILE" \
+    "$result_file" >/dev/null
   rm -f "$result_file"
 }
 
@@ -327,7 +348,7 @@ case "$ACTION" in
         --region "$AWS_REGION" \
         --profile "$AWS_PROFILE"
       configure_discord online
-      echo "CourseSnag is already in Cloud Active mode. No Discord alert was sent; /tracked is available and the application description confirms Status: ONLINE."
+      echo "CourseSnag is already in Discord Active mode. No Discord alert was sent; /tracked is available and the application description confirms Status: ONLINE."
       exit 0
     fi
     aws ssm put-parameter \
@@ -351,7 +372,8 @@ case "$ACTION" in
       --profile "$AWS_PROFILE"
     set_request_functions_enabled true
     configure_discord online
-    echo "CourseSnag is in Cloud Active mode. The shared monitor runs once per minute, /tracked is available, and the application description shows Status: ONLINE."
+    invoke_monitor_now
+    echo "CourseSnag is in Discord Active mode. An immediate monitor run was queued; later checks follow the adaptive 5/10/30-minute schedule. /tracked is available and the application description shows Status: ONLINE."
     ;;
   stop)
     PREVIOUS_MODE="$(current_mode)"

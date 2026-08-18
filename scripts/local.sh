@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${COURSESNAG_LOCAL_PORT:-4173}"
 
 if [[ "$PORT" != "4173" ]]; then
-  echo "Cloud testing is authorized only for http://localhost:4173." >&2
+  echo "Discord backend testing is authorized only for http://localhost:4173." >&2
   echo "Use port 4173 or redeploy with a matching LOCAL_DEVELOPMENT_ORIGIN." >&2
   exit 1
 fi

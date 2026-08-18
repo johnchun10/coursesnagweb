@@ -309,21 +309,152 @@ export async function listAllActiveTrackers() {
   return items;
 }
 
+export function aggregateTrackerCounts(items, requestedClassNbrs) {
+  const requested = new Set(requestedClassNbrs.map(String));
+  const usersBySection = new Map([...requested].map(classNbr => [classNbr, new Set()]));
+
+  for (const item of items || []) {
+    const classNbr = String(item.classNbr || '');
+    const userId = String(item.userId || '');
+    if (!requested.has(classNbr) || !userId) continue;
+    usersBySection.get(classNbr).add(userId);
+  }
+
+  return Object.fromEntries(
+    [...usersBySection].map(([classNbr, userIds]) => [classNbr, userIds.size])
+  );
+}
+
+export async function countActiveTrackersForSections(roster, subject, classNbrs) {
+  requireConfig('tableName');
+  const items = [];
+  let ExclusiveStartKey;
+  do {
+    const result = await documentClient.send(new QueryCommand({
+      TableName: config.tableName,
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :active AND begins_with(GSI1SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':active': 'ACTIVE',
+        ':prefix': `${roster}#${subject}#`
+      },
+      ProjectionExpression: 'classNbr, userId',
+      ExclusiveStartKey
+    }));
+    items.push(...(result.Items || []));
+    ExclusiveStartKey = result.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+
+  return aggregateTrackerCounts(items, classNbrs);
+}
+
+export async function getMonitorRunStatus() {
+  requireConfig('tableName');
+  const result = await documentClient.send(new GetCommand({
+    TableName: config.tableName,
+    Key: { PK: 'SYSTEM#MONITOR', SK: 'LAST_RUN' },
+    ConsistentRead: true
+  }));
+  return result.Item || null;
+}
+
+export async function acquireMonitorLease(owner, now = new Date(), lifetimeSeconds = 360) {
+  requireConfig('tableName');
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const leaseExpiresAt = nowSeconds + lifetimeSeconds;
+  try {
+    await documentClient.send(new PutCommand({
+      TableName: config.tableName,
+      Item: {
+        PK: 'SYSTEM#MONITOR',
+        SK: 'LEASE',
+        entityType: 'monitorLease',
+        owner,
+        acquiredAt: now.toISOString(),
+        leaseExpiresAt,
+        expiresAt: leaseExpiresAt
+      },
+      ConditionExpression: 'attribute_not_exists(PK) OR leaseExpiresAt <= :now',
+      ExpressionAttributeValues: { ':now': nowSeconds }
+    }));
+    return true;
+  } catch (error) {
+    if (error?.name === 'ConditionalCheckFailedException') return false;
+    throw error;
+  }
+}
+
+export async function releaseMonitorLease(owner) {
+  requireConfig('tableName');
+  try {
+    await documentClient.send(new DeleteCommand({
+      TableName: config.tableName,
+      Key: { PK: 'SYSTEM#MONITOR', SK: 'LEASE' },
+      ConditionExpression: '#owner = :owner',
+      ExpressionAttributeNames: { '#owner': 'owner' },
+      ExpressionAttributeValues: { ':owner': owner }
+    }));
+  } catch (error) {
+    if (error?.name !== 'ConditionalCheckFailedException') throw error;
+  }
+}
+
+export async function putMonitorPollStarted(startedAt, intervalMinutes) {
+  requireConfig('tableName');
+  await documentClient.send(new UpdateCommand({
+    TableName: config.tableName,
+    Key: { PK: 'SYSTEM#MONITOR', SK: 'LAST_RUN' },
+    UpdateExpression: [
+      'SET entityType = :entityType',
+      '#status = :status',
+      'startedAt = :startedAt',
+      'lastPollStartedAt = :startedAt',
+      'intervalMinutes = :intervalMinutes'
+    ].join(', '),
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':entityType': 'monitorStatus',
+      ':status': 'running',
+      ':startedAt': startedAt,
+      ':intervalMinutes': intervalMinutes
+    }
+  }));
+}
+
 export async function putMonitorRunStatus(summary) {
   requireConfig('tableName');
-  await documentClient.send(new PutCommand({
+  const hasResumePoint = Boolean(summary.resumeAfterGroup);
+  await documentClient.send(new UpdateCommand({
     TableName: config.tableName,
-    Item: {
-      PK: 'SYSTEM#MONITOR',
-      SK: 'LAST_RUN',
-      entityType: 'monitorStatus',
-      status: summary.status || 'ok',
-      checked: Number(summary.checked || 0),
-      alertsQueued: Number(summary.alertsQueued || 0),
-      groups: Number(summary.groups || 0),
-      failedGroups: Number(summary.failedGroups || 0),
-      removed: Number(summary.removed || 0),
-      completedAt: summary.completedAt
+    Key: { PK: 'SYSTEM#MONITOR', SK: 'LAST_RUN' },
+    UpdateExpression: [
+      'SET entityType = :entityType',
+      '#status = :status',
+      'checked = :checked',
+      'alertsQueued = :alertsQueued',
+      'groups = :groups',
+      'processedGroups = :processedGroups',
+      'deferredGroups = :deferredGroups',
+      'failedGroups = :failedGroups',
+      'removed = :removed',
+      'completedAt = :completedAt',
+      'intervalMinutes = :intervalMinutes',
+      ...(hasResumePoint ? ['resumeAfterGroup = :resumeAfterGroup'] : [])
+    ].join(', ') + (hasResumePoint ? '' : ' REMOVE resumeAfterGroup'),
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':entityType': 'monitorStatus',
+      ':status': summary.status || 'ok',
+      ':checked': Number(summary.checked || 0),
+      ':alertsQueued': Number(summary.alertsQueued || 0),
+      ':groups': Number(summary.groups || 0),
+      ':processedGroups': Number(summary.processedGroups || 0),
+      ':deferredGroups': Number(summary.deferredGroups || 0),
+      ':failedGroups': Number(summary.failedGroups || 0),
+      ':removed': Number(summary.removed || 0),
+      ':completedAt': summary.completedAt,
+      ':intervalMinutes': Number(summary.intervalMinutes || 0),
+      ...(hasResumePoint ? { ':resumeAfterGroup': summary.resumeAfterGroup } : {})
     }
   }));
 }

@@ -189,6 +189,15 @@ Resources:
             ApiId: !Ref CourseSnagApi
             Path: /mode
             Method: GET
+        TrackerCounts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CourseSnagApi
+            Path: /tracker-counts
+            Method: GET
+            RouteSettings:
+              ThrottlingBurstLimit: 10
+              ThrottlingRateLimit: 5
         GetMe:
           Type: HttpApi
           Properties:
@@ -244,7 +253,7 @@ Resources:
       FunctionName: !Sub ${AWS::StackName}-monitor
       CodeUri: ../backend/
       Handler: src/monitor.handler
-      Timeout: 55
+      Timeout: 300
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CourseSnagTable
@@ -284,8 +293,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub ${AWS::StackName}-monitor
-      Description: Runs the shared CourseSnag monitor only during Cloud Active mode
-      ScheduleExpression: rate(1 minute)
+      Description: Ticks the adaptive CourseSnag monitor only during Discord Active mode
+      ScheduleExpression: rate(5 minutes)
       State: DISABLED
       Targets:
         - Arn: !GetAtt MonitorFunction.Arn
@@ -466,6 +475,8 @@ Outputs:
     Value: !Ref CourseSnagTable
   MonitorRuleName:
     Value: !Ref MonitorRule
+  MonitorFunctionName:
+    Value: !Ref MonitorFunction
   OperationsFunctionName:
     Value: !Ref OperationsFunction
   ModeParameterName:

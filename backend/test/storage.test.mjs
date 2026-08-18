@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deduplicateDiscordProfiles } from '../src/storage.mjs';
+import { aggregateTrackerCounts, deduplicateDiscordProfiles } from '../src/storage.mjs';
 
 test('deduplicates Discord recipients and prefers the canonical Discord-owned profile', () => {
   const profiles = [
@@ -28,4 +28,18 @@ test('deduplicates Discord recipients and prefers the canonical Discord-owned pr
     deduplicateDiscordProfiles(profiles).map(profile => profile.PK).sort(),
     ['USER#123', 'USER#456']
   );
+});
+
+test('counts distinct Discord tracker owners for requested sections', () => {
+  assert.deepEqual(aggregateTrackerCounts([
+    { classNbr: '1111', userId: 'a' },
+    { classNbr: '1111', userId: 'b' },
+    { classNbr: '1111', userId: 'a' },
+    { classNbr: '2222', userId: 'c' },
+    { classNbr: '3333', userId: 'ignored' }
+  ], ['1111', '2222', '4444']), {
+    1111: 2,
+    2222: 1,
+    4444: 0
+  });
 });

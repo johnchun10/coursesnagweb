@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   availabilityEventForTransition,
   groupTrackersByRosterSubject,
+  normalizeTrackerCountQuery,
   normalizeTrackerInput
 } from '../src/domain.mjs';
 
@@ -44,4 +45,27 @@ test('describes open and not-open availability transitions', () => {
   assert.equal(availabilityEventForTransition('O', 'O'), null);
   assert.equal(availabilityEventForTransition('O', 'C'), 'course-not-open');
   assert.equal(availabilityEventForTransition('UNKNOWN', 'W'), 'course-not-open');
+});
+
+test('normalizes and deduplicates tracker-count query parameters', () => {
+  assert.deepEqual(normalizeTrackerCountQuery({
+    roster: 'fa26',
+    subject: 'cs',
+    classNbrs: '1234, 5678,1234'
+  }), {
+    roster: 'FA26',
+    subject: 'CS',
+    classNbrs: ['1234', '5678']
+  });
+});
+
+test('rejects malformed tracker-count requests', () => {
+  assert.throws(
+    () => normalizeTrackerCountQuery({ roster: 'FA26', subject: 'CS', classNbrs: '12x' }),
+    /only digits/
+  );
+  assert.throws(
+    () => normalizeTrackerCountQuery({ roster: 'FA26', subject: 'CS' }),
+    /Missing required/
+  );
 });

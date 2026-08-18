@@ -25,21 +25,21 @@ test('rejects tracker add and remove notifications', () => {
 test('formats a Discord connection confirmation', () => {
   const message = notificationContent({ type: 'connection-confirmed' }).content;
   assert.match(message, /CourseSnag is connected/);
-  assert.match(message, /cloud watchlist sync and course alerts/);
+  assert.match(message, /watchlist sync and course alerts/);
   assert.doesNotMatch(message, /coursesnag\.pages\.dev/);
 });
 
-test('formats seasonal cloud status messages', () => {
+test('formats seasonal Discord status messages', () => {
   const offline = notificationContent({ type: 'season-offline' }).content;
   const online = notificationContent({ type: 'season-online' }).content;
 
   assert.equal(
     offline,
-    'CourseSnag cloud tracking is currently **OFFLINE**. We will return before the next enrollment period!'
+    'CourseSnag Discord tracking is currently **OFFLINE**. We will return before the next enrollment period!'
   );
   assert.equal(
     online,
-    'CourseSnag cloud tracking is back **ONLINE**! Track your courses at https://coursesnag.pages.dev'
+    'CourseSnag Discord tracking is back **ONLINE**! Track your courses at https://coursesnag.pages.dev'
   );
   assert.doesNotMatch(offline, /sleep/i);
 });

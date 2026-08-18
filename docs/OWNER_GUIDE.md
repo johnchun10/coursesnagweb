@@ -1,6 +1,6 @@
 # CourseSnag owner guide
 
-Last updated: 2026-08-12
+Last updated: 2026-08-17
 
 ## Configured services
 
@@ -13,9 +13,9 @@ Last updated: 2026-08-12
 - Discord interactions: `https://ysc5mgv0ne.execute-api.us-east-1.amazonaws.com/dev/discord/interactions`
 - Annual AWS budget: USD 50 with 20%, 50%, 80%, and 100% alerts
 
-CourseSnag uses one advanced Discord OAuth flow with `identify`, `bot`, and `applications.commands`. Discord links the identity and installs the bot into a user-selected server in one screen. The installation requests zero server permissions; the resulting Discord ID owns the cloud watchlist. Google is not part of the account flow.
+CourseSnag uses one advanced Discord OAuth flow with `identify`, `bot`, and `applications.commands`. Discord links the identity and installs the bot into a user-selected server in one screen. The installation requests zero server permissions; the resulting Discord ID owns the Discord watchlist. Google is not part of the account flow.
 
-Discord requires a proactive bot-DM recipient and bot to share a server. Each new cloud user selects a server where they have **Manage Server** during CourseSnag authorization; a private server works. CourseSnag sends a confirmation DM before creating the account, so blocked DMs fail onboarding visibly.
+Discord requires a proactive bot-DM recipient and bot to share a server. Each new Discord Alerts user selects a server where they have **Manage Server** during CourseSnag authorization; a private server works. CourseSnag sends a confirmation DM before creating the account, so blocked DMs fail onboarding visibly.
 
 ## Secret storage
 
@@ -41,14 +41,14 @@ aws sso login --profile coursesnag
 ./scripts/deploy.sh
 ```
 
-Deployment reconciles AWS and Discord with the current stable mode without sending a seasonal DM. In Cloud Active it enables the request Lambdas and monitor, validates the interaction endpoint, and registers `/tracked`; in Local Standby it disables the request Lambdas and monitor and removes `/tracked`. It also sets the application description's `Status: ONLINE` or `Status: OFFLINE` text on the line immediately below the CourseSnag link, without an empty line between them. Deployment stops with an error instead of guessing if it finds a transitional `starting` or `stopping` mode.
+Deployment reconciles AWS and Discord with the current stable mode without sending a seasonal DM. In Discord Active it enables the request Lambdas and adaptive monitor, validates the interaction endpoint, and registers `/tracked`; in Local Standby it disables the request Lambdas and monitor and removes `/tracked`. It also sets the application description's `Status: ONLINE` or `Status: OFFLINE` text on the line immediately below the CourseSnag link, without an empty line between them. Deployment stops with an error instead of guessing if it finds a transitional `starting` or `stopping` mode.
 
 Cloudflare Pages already deploys the frontend from GitHub. No separate GitHub publishing workflow or manual Cloudflare upload is needed: push the intended frontend commit to the connected branch and wait for Pages to finish.
 
-## Testing cloud tracking
+## Testing Discord tracking
 
 1. Run `./scripts/season.sh start`.
-2. Open `https://coursesnag.pages.dev` and select Cloud.
+2. Open `https://coursesnag.pages.dev` and select Discord Alerts.
 3. Select **Connect Discord and add bot**.
 4. In the single Discord screen, select a server the tester manages and approve identity plus bot installation.
 5. Confirm Settings displays the Discord account and Discord receives the connection confirmation.
@@ -61,7 +61,7 @@ While signed in, browser changes are saved to AWS. Signing out leaves the browse
 
 CourseSnag automatically follows the roster Cornell marks as current. When Cornell advances to a new term, old-term trackers are removed from browsers when the site loads and from AWS on the next active monitor run. A section that disappears from a successful current-roster response is removed as well. Cleanup does not send a Discord message. If Cornell is unavailable or returns an error, CourseSnag keeps the trackers and reports degraded monitoring rather than treating uncertain data as removal.
 
-## Local Cloud-mode development
+## Local Discord-mode development
 
 Direct `file://` pages have an opaque origin and remain Local-only. The deployed API authorizes exactly the production site and `http://localhost:4173`. Start the local site with:
 
@@ -69,9 +69,9 @@ Direct `file://` pages have an opaque origin and remain Local-only. The deployed
 ./scripts/local.sh
 ```
 
-Then open `http://localhost:4173`. Cloud Active status, watchlist synchronization, and Discord sign-in all work from that origin. Each OAuth attempt stores its trusted return origin, so a local sign-in returns to localhost while a production sign-in returns to Cloudflare; the AWS callback itself does not change. A localhost browser has separate browser storage and must connect Discord once even if the production site is already signed in.
+Then open `http://localhost:4173`. Discord Active status, watchlist synchronization, watcher counts, and Discord sign-in all work from that origin. Each OAuth attempt stores its trusted return origin, so a local sign-in returns to localhost while a production sign-in returns to Cloudflare; the AWS callback itself does not change. A localhost browser has separate browser storage and must connect Discord once even if the production site is already signed in.
 
-The helper intentionally uses port `4173`. Another port is blocked unless both the deployment setting and local helper are deliberately changed. Cloud testing remains unavailable while CourseSnag is in Local Standby because the request Lambda is disabled.
+The helper intentionally uses port `4173`. Another port is blocked unless both the deployment setting and local helper are deliberately changed. Discord backend testing remains unavailable while CourseSnag is in Local Standby because the request Lambda is disabled.
 
 ## Public policy pages
 
@@ -88,17 +88,17 @@ Both URLs are configured in the Discord Developer Portal. As of August 11, 2026,
 ./scripts/season.sh stop
 ```
 
-Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the one-time OFFLINE Discord notice, removes `/tracked`, disables scheduled monitoring, and hard-disables the website API and Discord interaction Lambdas with zero concurrency. `start` restores both request functions and `/tracked`, enables monitoring, and queues the ONLINE notice. Both commands update the Discord application description with the matching status. Repeating a command while CourseSnag is already in that mode does not send duplicate notices, but it repairs any drift in the command, function, or description state. Browsers previously using Cloud automatically switch to Local when the API becomes unavailable. Account/watchlist data and the static website remain available.
+Use these commands instead of turning individual AWS resources on and off in the console. `stop` queues the one-time OFFLINE Discord notice, removes `/tracked`, disables scheduled monitoring, and hard-disables the website API and Discord interaction Lambdas with zero concurrency. `start` restores both request functions and `/tracked`, enables monitoring, queues the ONLINE notice, and invokes one immediate monitor cycle. Later Cornell checks run every 5, 10, or 30 minutes according to the published refresh windows. Both commands update the Discord application description with the matching status. Repeating a command while CourseSnag is already in that mode does not send duplicate notices, but it repairs any drift in the command, function, or description state. Browsers previously using Discord Alerts automatically switch to Local when the API becomes unavailable. Account/watchlist data and the static website remain available.
 
 Run them from the project directory on the Mac where the AWS CLI profile is configured. In Local Standby, browsers that already use Local do not contact AWS during routine page loads; opening Settings performs a fresh availability check. Do not manually delete or disable individual AWS resources.
 
-`status` is the owner dashboard. It reports monitoring state, API health, Discord-account and tracker counts, unique daily active users, the last monitor result, alert queue and dead-letter counts, invocation/error totals for the last 24 hours, and annual budget usage. A daily active user is a unique linked Discord account that signed in, used the cloud website, or ran `/tracked` during the previous 24 hours. The command is read-only and does not send Discord messages or change monitoring mode. AWS billing totals can lag by about 24 hours.
+`status` is the owner dashboard. It reports monitoring state, API health, Discord-account and tracker counts, unique daily active users, the last monitor result, alert queue and dead-letter counts, invocation/error totals for the last 24 hours, and annual budget usage. A daily active user is a unique linked Discord account that signed in, used the Discord-backed website features, or ran `/tracked` during the previous 24 hours. The command is read-only and does not send Discord messages or change monitoring mode. AWS billing totals can lag by about 24 hours.
 
 Inspect quarantined alerts without changing them with `./scripts/dead-letters.sh inspect`. Permanently clear the dead-letter queue with `./scripts/dead-letters.sh purge`; the command requires typing `PURGE` and does not replay messages.
 
 The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence dot therefore appears offline in both seasonal modes. The persistent `Status: ONLINE` or `Status: OFFLINE` application-description line and the most recent seasonal DM communicate the actual CourseSnag monitoring state without adding a continuously running AWS service.
 
-Free-form messages sent to the bot are not received by CourseSnag. During Cloud Active, `/tracked` lists the cloud watchlist. During Local Standby, the command is removed from Discord and its Lambda cannot execute. The only OFFLINE notices are the one-time transition DM sent by `season.sh stop` and the persistent application-description status; Discord does not automatically respond to ordinary messages.
+Free-form messages sent to the bot are not received by CourseSnag. During Discord Active, `/tracked` lists the Discord watchlist. During Local Standby, the command is removed from Discord and its Lambda cannot execute. The only OFFLINE notices are the one-time transition DM sent by `season.sh stop` and the persistent application-description status; Discord does not automatically respond to ordinary messages.
 
 After deploying the operations alarm for the first time, confirm the separate AWS SNS subscription email. Budget-alert confirmation does not also confirm operational alerts. Local Standby stops recurring CourseSnag compute, but it is not a literal zero-dollar guarantee: the retained DynamoDB/S3 data and the dead-letter CloudWatch alarm can still have small storage or fixed charges. The dead-letter alarm costs approximately USD 0.10 per month at standard CloudWatch alarm pricing.
 
@@ -111,7 +111,7 @@ aws logs tail /aws/lambda/coursesnag-dev-notifier --since 30m --profile coursesn
 aws logs tail /aws/lambda/coursesnag-dev-interactions --since 30m --profile coursesnag --region us-east-1
 ```
 
-The caller ARN should contain an assumed SSO role, not `root`. Review CloudWatch and AWS Billing during Cloud Active periods.
+The caller ARN should contain an assumed SSO role, not `root`. Review CloudWatch and AWS Billing during Discord Active periods.
 
 ## Remaining production work
 

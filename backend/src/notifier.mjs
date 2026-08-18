@@ -18,7 +18,7 @@ export async function handler(event) {
       if (COURSE_NOTIFICATION_TYPES.has(message.type)) {
         mode ??= await currentMode();
         if (!shouldDeliverNotification(message, mode)) {
-          console.log('Course notification suppressed while cloud monitoring is paused', {
+          console.log('Course notification suppressed while Discord monitoring is paused', {
             messageId: record.messageId,
             type: message.type
           });
@@ -26,6 +26,15 @@ export async function handler(event) {
         }
       }
       await sendDirectMessage(message);
+      console.log('Discord notification accepted', {
+        messageId: record.messageId,
+        eventId: message.eventId || null,
+        type: message.type,
+        sourceObservedAt: message.sourceObservedAt || null,
+        detectedAt: message.detectedAt || null,
+        queuedAt: message.queuedAt || null,
+        providerAcceptedAt: new Date().toISOString()
+      });
     } catch (error) {
       console.error('Discord notification failed', {
         messageId: record.messageId,

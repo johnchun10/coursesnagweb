@@ -1,4 +1,4 @@
-// CourseSnag Discord account and cloud-watchlist client
+// CourseSnag Discord account and server-watchlist client
 (function() {
   'use strict';
 
@@ -13,6 +13,8 @@
     profile: null,
     syncing: false,
     discordBusy: false,
+    modeChecked: false,
+    modeCheckPromise: null,
     initialized: false,
     adapter: null,
     els: {}
@@ -30,6 +32,8 @@
     const signedIn = isSignedIn();
     return {
       mode: state.mode,
+      modeChecked: state.modeChecked,
+      initialized: state.initialized,
       signedIn,
       syncing: state.syncing,
       discordConnected: signedIn
@@ -53,17 +57,17 @@
     state.els.modeBadge.dataset.mode = mode;
 
     if (mode === 'cloud') {
-      state.els.modeTitle.textContent = 'Cloud active';
+      state.els.modeTitle.textContent = 'Discord active';
       state.els.modeDescription.textContent = 'Discord monitoring is enabled.';
     } else if (mode === 'unavailable') {
-      state.els.modeTitle.textContent = 'Cloud inactive';
-      state.els.modeDescription.textContent = 'Cloud Alerts are unavailable right now.';
+      state.els.modeTitle.textContent = 'Discord inactive';
+      state.els.modeDescription.textContent = 'Discord Alerts are unavailable right now.';
     } else if (mode === 'checking') {
-      state.els.modeTitle.textContent = 'Checking cloud status';
+      state.els.modeTitle.textContent = 'Checking Discord status';
       state.els.modeDescription.textContent = 'Checking monitoring status.';
     } else {
-      state.els.modeTitle.textContent = 'Cloud inactive';
-      state.els.modeDescription.textContent = 'Cloud Alerts are not running.';
+      state.els.modeTitle.textContent = 'Discord inactive';
+      state.els.modeDescription.textContent = 'Discord Alerts are not running.';
     }
     if (shouldAnnounce) announceState();
   }
@@ -83,7 +87,7 @@
       state.els.discordProfileDetail.textContent = 'Checking the saved session.';
     } else {
       state.els.discordProfileName.textContent = 'Discord is not connected';
-      state.els.discordProfileDetail.textContent = 'Connect Discord to synchronize the cloud watchlist and receive alerts.';
+      state.els.discordProfileDetail.textContent = 'Connect Discord to synchronize your watchlist and receive alerts.';
     }
     if (state.els.discordProfile) {
       state.els.discordProfile.hidden = !hasSession;
@@ -122,7 +126,7 @@
       ...(options.headers || {})
     };
     if (authenticated) {
-      if (!state.sessionToken) throw new Error('Connect Discord to use cloud tracking.');
+      if (!state.sessionToken) throw new Error('Connect Discord to use Discord tracking.');
       headers.authorization = `Bearer ${state.sessionToken}`;
     }
     if (options.body) headers['content-type'] = 'application/json';
@@ -146,7 +150,7 @@
         throw new Error('Discord session expired.');
       }
       if (!response.ok) {
-        let message = `Cloud service returned HTTP ${response.status}`;
+        let message = `Discord Alerts service returned HTTP ${response.status}`;
         try {
           const payload = await response.json();
           if (payload.error) message = payload.error;
@@ -158,7 +162,7 @@
       if (response.status === 204) return null;
       return await response.json();
     } catch (error) {
-      if (timedOut) throw new Error('Cloud service request timed out.');
+      if (timedOut) throw new Error('Discord Alerts service request timed out.');
       throw error;
     } finally {
       clearTimeout(timeoutId);
@@ -173,21 +177,42 @@
     return request(path, options, true);
   }
 
-  async function fetchMode() {
-    state.mode = 'checking';
-    renderMode();
-    try {
-      const payload = await publicFetch('/mode');
-      state.mode = payload.mode === 'cloud' ? 'cloud' : 'local';
-    } catch (error) {
-      console.warn('Cloud mode check failed:', error);
-      state.mode = 'unavailable';
-    }
-    renderMode();
+  function fetchMode() {
+    if (state.modeCheckPromise) return state.modeCheckPromise;
+    const check = Promise.resolve().then(async () => {
+      state.mode = 'checking';
+      state.modeChecked = false;
+      renderMode();
+      try {
+        const payload = await publicFetch('/mode');
+        state.mode = payload.mode === 'cloud' ? 'cloud' : 'local';
+      } catch (error) {
+        console.warn('Discord mode check failed:', error);
+        state.mode = 'unavailable';
+      }
+      state.modeChecked = true;
+      renderMode();
+    });
+    state.modeCheckPromise = check.finally(() => {
+      state.modeCheckPromise = null;
+    });
+    return state.modeCheckPromise;
   }
 
   async function deleteCloudTracker(id) {
     await cloudFetch(`/trackers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  async function getTrackerCounts(roster, subject, classNbrs) {
+    if (!state.initialized || !classNbrs.length) return { counts: {} };
+    if (!state.modeChecked) await fetchMode();
+    if (state.mode !== 'cloud') return { counts: {} };
+    const params = new URLSearchParams({
+      roster,
+      subject,
+      classNbrs: classNbrs.map(String).join(',')
+    });
+    return publicFetch(`/tracker-counts?${params.toString()}`);
   }
 
   async function uploadTracker(tracker) {
@@ -210,7 +235,7 @@
     if (state.mode !== 'cloud' || !state.sessionToken || !state.adapter || state.syncing) return;
     state.syncing = true;
     announceState();
-    setSyncStatus('Loading your cloud watchlist…', 'working');
+    setSyncStatus('Loading your Discord watchlist…', 'working');
 
     try {
       if (!state.profile) {
@@ -221,9 +246,9 @@
 
       const cloudPayload = await cloudFetch('/trackers');
       state.adapter.replaceLocalTrackers(cloudPayload.trackers || []);
-      setSyncStatus('Cloud watchlist loaded.', 'success');
+      setSyncStatus('Discord watchlist loaded.', 'success');
     } catch (error) {
-      console.error('Cloud synchronization failed:', error);
+      console.error('Discord synchronization failed:', error);
       setSyncStatus(error.message, 'error');
     } finally {
       state.syncing = false;
@@ -259,7 +284,7 @@
     try {
       if (state.sessionToken) await cloudFetch('/session', { method: 'DELETE' });
     } catch (error) {
-      console.warn('Cloud session revocation failed:', error);
+      console.warn('Discord session revocation failed:', error);
     } finally {
       state.discordBusy = false;
       clearSession('Signed out. Your browser watchlist remains on this device.');
@@ -293,7 +318,7 @@
         state.profile = payload.profile;
         localStorage.setItem(SESSION_KEY, payload.sessionToken);
         renderAccount(false);
-        setSyncStatus('Discord connected. Loading your cloud watchlist…', 'success');
+        setSyncStatus('Discord connected. Loading your watchlist…', 'success');
         await syncNow();
       } else if (result === 'cancelled') {
         renderAccount(false);
@@ -322,9 +347,12 @@
   async function trackerAdded(tracker) {
     if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
-      setSyncStatus('Adding the section to the cloud watchlist…', 'working');
+      setSyncStatus('Adding the section to your Discord watchlist…', 'working');
       await uploadTracker(tracker);
-      setSyncStatus(`${tracker.subject} ${tracker.catalogNbr || tracker.classNbr} was added to the cloud watchlist.`, 'success');
+      setSyncStatus(`${tracker.subject} ${tracker.catalogNbr || tracker.classNbr} was added to your Discord watchlist.`, 'success');
+      window.dispatchEvent(new CustomEvent('coursesnag:watcher-counts-invalidated', {
+        detail: { tracker }
+      }));
     } catch (error) {
       setSyncStatus(error.message, 'error');
     }
@@ -334,9 +362,12 @@
     const id = trackerId(tracker);
     if (state.mode !== 'cloud' || !state.sessionToken) return;
     try {
-      setSyncStatus('Removing the section from the cloud watchlist…', 'working');
+      setSyncStatus('Removing the section from your Discord watchlist…', 'working');
       await deleteCloudTracker(id);
-      setSyncStatus('The section was removed from the browser and cloud watchlists.', 'success');
+      setSyncStatus('The section was removed from the browser and Discord watchlists.', 'success');
+      window.dispatchEvent(new CustomEvent('coursesnag:watcher-counts-invalidated', {
+        detail: { tracker }
+      }));
     } catch (error) {
       setSyncStatus(error.message, 'error');
     }
@@ -370,6 +401,7 @@
       await fetchMode();
     } else {
       state.mode = 'local';
+      state.modeChecked = false;
       renderMode();
     }
     const handledReturn = await handleDiscordReturn();
@@ -383,6 +415,7 @@
     syncNow,
     trackerAdded,
     trackerRemoved,
+    getTrackerCounts,
     refreshMode: fetchMode,
     getState: publicState
   };

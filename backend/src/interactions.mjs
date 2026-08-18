@@ -86,7 +86,7 @@ function statusLabel(status) {
 }
 
 export function trackedCoursesContent(trackers) {
-  if (!trackers.length) return '**Tracked courses (0)**\nYour cloud watchlist is empty.';
+  if (!trackers.length) return '**Tracked courses (0)**\nYour Discord watchlist is empty.';
 
   const ordered = [...trackers].sort((left, right) => [
     left.roster,
@@ -220,6 +220,6 @@ export async function handler(event) {
       userId,
       message: error.message
     });
-    return ephemeral('CourseSnag could not load your cloud watchlist. Try again shortly.');
+    return ephemeral('CourseSnag could not load your Discord watchlist. Try again shortly.');
   }
 }

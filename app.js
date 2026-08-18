@@ -10,8 +10,12 @@
   const STORAGE_PREFIX = 'csw.';
   const DEBOUNCE_DELAY_MS = 400;
   const RATE_LIMIT_MS = 1000; // 1 request per second
-  const POLLING_OPTIONS = [300, 600, 900, 1200];
+  const POLLING_OPTIONS = [60, 300, 600, 1200];
   const DEFAULT_POLLING_INTERVAL_SEC = 300;
+  const GLOBAL_SEARCH_MIN_CHARS = 3;
+  const GLOBAL_SEARCH_RESULT_LIMIT = 25;
+  const GLOBAL_SEARCH_INSTRUCTION_MODES = ['RE', 'AD', 'OL', 'SD', 'HY', 'P', 'IS'];
+  const WATCHER_COUNT_CACHE_MS = 30_000;
 
   // ============================================
   // State
@@ -21,7 +25,7 @@
     subjectSet: new Set(),
     currentRoster: null,
     // Cache for subject classes (avoid re-fetching when typing numbers)
-    cachedSubject: null,
+    cachedSearchKey: null,
     cachedClasses: [],
     // Filtered results displayed to user
     searchResults: [],
@@ -36,6 +40,8 @@
     isSearching: false,
     isRefreshing: false,
     searchRequestSeq: 0,
+    watcherCounts: new Map(),
+    watcherCountRequests: new Map(),
     // Error states
     initError: null,
     searchError: null,
@@ -537,27 +543,91 @@
     return data.classes || [];
   }
 
+  async function searchClassesByQuery(roster, query, options = {}) {
+    const params = new URLSearchParams({
+      roster,
+      q: query,
+      _: String(Date.now())
+    });
+    for (const mode of GLOBAL_SEARCH_INSTRUCTION_MODES) {
+      params.append('instructMode[]', mode);
+    }
+    const data = await rateLimitedFetch(
+      `${API_BASE}/search/classes.json?${params.toString()}`,
+      options
+    );
+    return data.classes || [];
+  }
+
   // ============================================
   // Search Input Parsing
   // ============================================
   function parseSearchInput(input) {
-    const trimmed = input.trim().toUpperCase();
-    if (!trimmed) return null;
+    const raw = input.trim();
+    const trimmed = raw.toUpperCase();
+    if (!raw) return null;
 
-    // Try to match "SUBJECT NUMBER" or "SUBJECT" pattern
-    // Examples: "CS 2110", "CS2110", "CS", "MATH 1920", "INFO"
+    // Preserve the quick subject/code path while allowing ordinary title text.
     const match = trimmed.match(/^([A-Z]+)\s*(\d.*)?$/);
-    if (!match) return null;
-
-    const subject = match[1];
-    const query = match[2] ? match[2].trim() : '';
-
-    // Validate subject exists
-    if (!state.subjectSet.has(subject)) {
-      return null;
+    if (match && state.subjectSet.has(match[1])) {
+      return {
+        kind: 'subject',
+        subject: match[1],
+        query: match[2] ? match[2].trim() : ''
+      };
     }
 
-    return { subject, query };
+    if (raw.length < GLOBAL_SEARCH_MIN_CHARS) return null;
+    return { kind: 'global', query: raw };
+  }
+
+  function searchCacheKey(parsed) {
+    return parsed.kind === 'subject'
+      ? `subject:${parsed.subject}`
+      : `global:${parsed.query.trim().toLocaleLowerCase()}`;
+  }
+
+  function normalizedSearchText(value) {
+    return String(value || '')
+      .toLocaleLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  function rankGlobalSearchResults(classes, query) {
+    const normalizedQuery = normalizedSearchText(query);
+    const compactQuery = normalizedQuery.replace(/\s+/g, '');
+    const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+
+    return classes
+      .map((course, index) => {
+        const code = `${course.subject || ''}${course.catalogNbr || ''}`.toLocaleLowerCase();
+        const title = normalizedSearchText(course.titleShort || course.titleLong || '');
+        const haystack = `${code} ${title}`;
+        let score = 5;
+        if (code === compactQuery) score = 0;
+        else if (code.startsWith(compactQuery)) score = 1;
+        else if (title.startsWith(normalizedQuery)) score = 2;
+        else if (tokens.length && tokens.every(token => haystack.includes(token))) score = 3;
+        else if (title.includes(normalizedQuery)) score = 4;
+        return { course, index, score };
+      })
+      .sort((left, right) => (
+        left.score - right.score
+        || String(left.course.subject || '').localeCompare(String(right.course.subject || ''))
+        || String(left.course.catalogNbr || '').localeCompare(String(right.course.catalogNbr || ''), undefined, { numeric: true })
+        || left.index - right.index
+      ))
+      .slice(0, GLOBAL_SEARCH_RESULT_LIMIT)
+      .map(result => result.course);
+  }
+
+  function searchInputHint() {
+    const value = els.searchInput.value.trim();
+    if (value) {
+      return `Type at least ${GLOBAL_SEARCH_MIN_CHARS} characters, or enter a valid subject code.`;
+    }
+    return 'Search by course name or code, such as Machine Learning or CS 2110.';
   }
 
   // ============================================
@@ -597,7 +667,7 @@
     const parsed = parseSearchInput(els.searchInput.value);
     if (!parsed) {
       setEmptyState(true);
-      els.searchResults.innerHTML = '<p class="empty-state">Enter a subject code, such as CS, MATH, or INFO.</p>';
+      els.searchResults.innerHTML = `<p class="empty-state">${escapeHtml(searchInputHint())}</p>`;
       return;
     }
 
@@ -622,7 +692,7 @@
           <div class="course-header" data-action="toggle-course" data-course-id="${escapeAttr(courseId)}" aria-expanded="${isExpanded ? 'true' : 'false'}">
             <div class="course-header-info">
               <div class="course-title">${escapeHtml(course.titleShort || course.titleLong || 'Untitled course')}</div>
-              <div class="course-code">${course.subject} ${course.catalogNbr} (${sections.length} section${sections.length !== 1 ? 's' : ''})</div>
+              <div class="course-code">${escapeHtml(course.subject)} ${escapeHtml(course.catalogNbr)} (${sections.length} section${sections.length !== 1 ? 's' : ''})</div>
             </div>
             <span class="course-toggle">▼</span>
           </div>
@@ -634,6 +704,7 @@
     }
 
     els.searchResults.innerHTML = html || '<p class="empty-state">No sections found.</p>';
+    void loadWatcherCountsForExpandedCourses();
   }
 
   function getCourseId(course) {
@@ -661,6 +732,104 @@
     return `${mtg.pattern || ''} ${mtg.timeStart} - ${mtg.timeEnd}`.trim();
   }
 
+  function watcherKey(roster, classNbr) {
+    return `${roster}:${String(classNbr)}`;
+  }
+
+  function discordCountsAreAvailable() {
+    return window.CourseSnagCloud?.getState?.().mode === 'cloud';
+  }
+
+  function formatWatcherCount(count) {
+    if (count === 0) return 'No Discord watchers';
+    return `${count} Discord watcher${count === 1 ? '' : 's'}`;
+  }
+
+  function updateWatcherCountElements() {
+    const available = discordCountsAreAvailable();
+    for (const element of document.querySelectorAll('[data-watcher-key]')) {
+      const cached = state.watcherCounts.get(element.dataset.watcherKey);
+      const hasFreshCount = cached && cached.expiresAt > Date.now();
+      element.hidden = !available || !hasFreshCount;
+      if (available && hasFreshCount) {
+        element.textContent = formatWatcherCount(cached.count);
+      }
+    }
+  }
+
+  async function loadWatcherCounts(roster, subject, classNbrs) {
+    const discordState = window.CourseSnagCloud?.getState?.();
+    if (!window.CourseSnagCloud?.getTrackerCounts
+      || discordState?.initialized === false
+      || (discordState?.modeChecked && discordState.mode !== 'cloud')) {
+      updateWatcherCountElements();
+      return;
+    }
+
+    const unresolved = [...new Set(classNbrs.map(String))].filter(classNbr => {
+      const cached = state.watcherCounts.get(watcherKey(roster, classNbr));
+      return !cached || cached.expiresAt <= Date.now();
+    });
+    if (!unresolved.length) {
+      updateWatcherCountElements();
+      return;
+    }
+
+    const requestKey = `${roster}:${subject}:${unresolved.slice().sort().join(',')}`;
+    if (state.watcherCountRequests.has(requestKey)) {
+      await state.watcherCountRequests.get(requestKey);
+      return;
+    }
+
+    const request = window.CourseSnagCloud.getTrackerCounts(roster, subject, unresolved)
+      .then(payload => {
+        const expiresAt = Date.now() + WATCHER_COUNT_CACHE_MS;
+        for (const classNbr of unresolved) {
+          state.watcherCounts.set(watcherKey(roster, classNbr), {
+            count: Number(payload?.counts?.[classNbr] || 0),
+            expiresAt
+          });
+        }
+        updateWatcherCountElements();
+      })
+      .catch(error => {
+        console.warn('Discord watcher counts could not be loaded:', error);
+        updateWatcherCountElements();
+      })
+      .finally(() => state.watcherCountRequests.delete(requestKey));
+    state.watcherCountRequests.set(requestKey, request);
+    await request;
+  }
+
+  function loadWatcherCountsForExpandedCourses() {
+    const discordState = window.CourseSnagCloud?.getState?.();
+    if (discordState?.modeChecked && discordState.mode !== 'cloud') {
+      updateWatcherCountElements();
+      return;
+    }
+    for (const course of state.searchResults) {
+      if (!state.expandedCourses.has(getCourseId(course))) continue;
+      void loadWatcherCounts(
+        state.currentRoster,
+        course.subject,
+        getCourseSections(course).map(section => section.classNbr)
+      );
+    }
+  }
+
+  function loadWatcherCountsForTrackedSections() {
+    const groups = new Map();
+    for (const tracker of state.trackedSections) {
+      const key = `${tracker.roster}:${tracker.subject}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tracker.classNbr);
+    }
+    for (const [key, classNbrs] of groups) {
+      const separator = key.indexOf(':');
+      void loadWatcherCounts(key.slice(0, separator), key.slice(separator + 1), classNbrs);
+    }
+  }
+
   function renderSectionRow(course, section) {
     const trackKey = `${state.currentRoster}:${String(section.classNbr)}`;
     const isTracked = state.trackedKeySet.has(trackKey);
@@ -673,7 +842,10 @@
         <span class="section-number">${section.section}</span>
         <span class="badge badge-component">${section.ssrComponent}</span>
         <span class="badge badge-status ${statusClass}">${statusLabel}</span>
-        <span class="section-time" title="${escapeAttr(classTime)}">${escapeHtml(classTime)}</span>
+        <span class="section-details">
+          <span class="section-time" title="${escapeAttr(classTime)}">${escapeHtml(classTime)}</span>
+          <span class="section-watchers" data-watcher-key="${escapeAttr(trackKey)}" hidden></span>
+        </span>
         <div class="section-actions">
           <button
             class="btn btn-small ${isTracked ? 'btn-secondary' : 'btn-primary'}"
@@ -733,6 +905,7 @@
               <span class="badge badge-status ${statusClass}">${statusLabel}</span>
               ${item.classTime ? `<span class="tracked-time" title="${escapeAttr(item.classTime)}">${escapeHtml(item.classTime)}</span>` : ''}
             </div>
+            <span class="tracked-watchers" data-watcher-key="${escapeAttr(trackedKey)}" hidden></span>
           </div>
           <div class="tracked-actions">
             <button
@@ -749,6 +922,7 @@
         </div>
       `;
     }).join('');
+    loadWatcherCountsForTrackedSections();
   }
 
   function updateTrackedStatuses() {
@@ -790,19 +964,19 @@
     const cloudState = window.CourseSnagCloud?.getState();
     if (state.alertMode === 'cloud' && (!cloudState || cloudState.mode === 'checking')) {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Checking Cloud Alerts status. Keep this tab open for browser alerts.';
+      els.tabOpenNoticeText.textContent = 'Checking Discord Alerts status. Keep this tab open for browser alerts.';
     } else if (state.alertMode === 'cloud' && cloudState?.mode !== 'cloud') {
       els.tabOpenNotice.dataset.mode = 'unavailable';
-      els.tabOpenNoticeText.textContent = 'Cloud inactive. Keep this tab open for browser alerts.';
+      els.tabOpenNoticeText.textContent = 'Discord inactive. Keep this tab open for browser alerts.';
     } else if (state.alertMode === 'cloud' && cloudState?.signedIn) {
       els.tabOpenNotice.dataset.mode = 'cloud';
-      els.tabOpenNoticeText.textContent = 'Cloud Alerts are active. Keep this tab open for in-browser alerts.';
+      els.tabOpenNoticeText.textContent = 'Discord Alerts are active. Keep this tab open for in-browser alerts.';
     } else if (state.alertMode === 'cloud') {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Connect Discord for Cloud Alerts. Keep this tab open for browser alerts.';
+      els.tabOpenNoticeText.textContent = 'Connect Discord for Discord Alerts. Keep this tab open for browser alerts.';
     } else if (!state.alertMode) {
       els.tabOpenNotice.dataset.mode = 'account';
-      els.tabOpenNoticeText.textContent = 'Choose Cloud Alerts or Browser Alerts.';
+      els.tabOpenNoticeText.textContent = 'Choose Discord Alerts or Browser Alerts.';
     } else {
       els.tabOpenNotice.dataset.mode = 'local';
       els.tabOpenNoticeText.textContent = 'Keep this tab open for browser alerts.';
@@ -908,11 +1082,11 @@
 
   async function performSearch() {
     const inputValue = els.searchInput.value;
-    const normalizedInput = inputValue.trim().toUpperCase();
+    const normalizedInput = inputValue.trim().toLocaleLowerCase();
     const requestSeq = ++state.searchRequestSeq;
     const isCurrentSearch = () =>
       requestSeq === state.searchRequestSeq &&
-      els.searchInput.value.trim().toUpperCase() === normalizedInput;
+      els.searchInput.value.trim().toLocaleLowerCase() === normalizedInput;
     const parsed = parseSearchInput(inputValue);
 
     if (!parsed) {
@@ -925,8 +1099,8 @@
       return;
     }
 
-    // Check if we need to fetch new data (subject changed only)
-    const needsFetch = parsed.subject !== state.cachedSubject;
+    const cacheKey = searchCacheKey(parsed);
+    const needsFetch = cacheKey !== state.cachedSearchKey;
 
     if (needsFetch) {
       cancelActiveSearch();
@@ -939,10 +1113,13 @@
       let classes = null;
       let fetchError = null;
       try {
-        // Always fetch ALL classes for the subject (no query parameter)
-        classes = await searchClasses(state.currentRoster, parsed.subject, {
-          signal: controller.signal
-        });
+        classes = parsed.kind === 'subject'
+          ? await searchClasses(state.currentRoster, parsed.subject, {
+              signal: controller.signal
+            })
+          : await searchClassesByQuery(state.currentRoster, parsed.query, {
+              signal: controller.signal
+            });
       } catch (error) {
         fetchError = error;
       } finally {
@@ -958,7 +1135,7 @@
 
       if (fetchError) {
         console.error('Search failed:', fetchError);
-        state.searchError = getUserFriendlyError(fetchError, 'Subject');
+        state.searchError = getUserFriendlyError(fetchError, 'Search');
         setSearchStatus('');
         state.searchResults = [];
         renderSearchResults();
@@ -966,7 +1143,7 @@
       }
 
       state.cachedClasses = classes;
-      state.cachedSubject = parsed.subject;
+      state.cachedSearchKey = cacheKey;
     }
 
     if (!isCurrentSearch()) return;
@@ -974,10 +1151,13 @@
     // Clear any previous search error on success
     state.searchError = null;
 
-    // Filter cached results by catalog number prefix (all client-side)
-    if (parsed.query) {
+    if (parsed.kind === 'global') {
+      state.searchResults = rankGlobalSearchResults(state.cachedClasses, parsed.query);
+      const resultLabel = state.searchResults.length === 1 ? 'result' : 'results';
+      setSearchStatus(`Found ${state.searchResults.length} ${resultLabel} for “${parsed.query}”.`);
+    } else if (parsed.query) {
       state.searchResults = state.cachedClasses.filter(course =>
-        course.catalogNbr.startsWith(parsed.query)
+        String(course.catalogNbr || '').startsWith(parsed.query)
       );
       const resultLabel = state.searchResults.length === 1 ? 'result' : 'results';
       setSearchStatus(`Found ${state.searchResults.length} ${resultLabel} for ${parsed.subject} ${parsed.query}.`);
@@ -1016,8 +1196,9 @@
       return;
     }
 
-    // If same subject, render immediately (client-side filtering, no API call needed)
-    if (parsed.subject === state.cachedSubject) {
+    // A cached subject can filter catalog numbers immediately; an identical
+    // global query can also reuse its most recent response.
+    if (searchCacheKey(parsed) === state.cachedSearchKey) {
       performSearch();
       return;
     }
@@ -1055,6 +1236,16 @@
     card.classList.toggle('expanded', shouldExpand);
     card.querySelector('[data-action="toggle-course"]')
       ?.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
+    if (shouldExpand) {
+      const course = state.searchResults.find(result => getCourseId(result) === courseId);
+      if (course) {
+        void loadWatcherCounts(
+          state.currentRoster,
+          course.subject,
+          getCourseSections(course).map(section => section.classNbr)
+        );
+      }
+    }
   }
 
   // ============================================
@@ -1422,8 +1613,8 @@
       ].filter(Boolean);
 
       // Also refresh search results if there's an active search
-      if (state.cachedSubject) {
-        state.cachedSubject = null; // Force re-fetch from API
+      if (state.cachedSearchKey) {
+        state.cachedSearchKey = null; // Force re-fetch from Cornell.
         refreshes.push(performSearch());
       }
 
@@ -1540,7 +1731,7 @@
     els.chooseCloudMode.setAttribute('aria-disabled', available ? 'false' : 'true');
     els.cloudOptionStatus.className = `mode-choice-availability ${checking ? 'checking' : available ? 'available' : 'unavailable'}`;
     els.cloudOptionStatusText.textContent = checking ? 'Checking' : available ? 'Available' : 'Inactive';
-    els.cloudOptionAction.textContent = checking ? 'Checking availability' : available ? 'Select' : 'Cloud inactive';
+    els.cloudOptionAction.textContent = checking ? 'Checking availability' : available ? 'Select' : 'Discord inactive';
 
     if (!available && state.pendingAlertMode === 'cloud' && state.settingsView === 'choice') {
       state.pendingAlertMode = null;
@@ -1576,10 +1767,10 @@
       ? 'unavailable'
       : state.alertMode || 'unset';
     const footerModeLabel = footerMode === 'unavailable'
-      ? 'Cloud inactive, browser alerts available'
+      ? 'Discord inactive, browser alerts available'
       : footerMode === 'unset'
         ? 'No alert delivery selected'
-        : footerMode === 'cloud' ? 'Cloud and in-browser settings' : 'Browser Alerts settings';
+        : footerMode === 'cloud' ? 'Discord and in-browser settings' : 'Browser Alerts settings';
     els.settingsButton.textContent = 'Settings';
     els.settingsButton.dataset.mode = footerMode;
     els.settingsButton.setAttribute('aria-label', `Settings, ${footerModeLabel}`);
@@ -1610,9 +1801,9 @@
     els.settingsFooterNote.textContent = isChoice
       ? 'Choose how CourseSnag should alert you.'
       : cloudNeedsDiscord
-        ? 'Connect Discord to finish Cloud Alerts setup.'
+        ? 'Connect Discord to finish Discord Alerts setup.'
         : cloudUnavailable
-          ? 'Cloud is inactive. In-browser settings remain available.'
+          ? 'Discord is inactive. In-browser settings remain available.'
           : 'Changes are saved automatically.';
   }
 
@@ -1726,7 +1917,20 @@
     if (els.pollingSegmented) {
       els.pollingSegmented.addEventListener('click', onPollingClick);
     }
-    window.addEventListener('coursesnag:cloud-state', renderAlertMode);
+    window.addEventListener('coursesnag:cloud-state', () => {
+      renderAlertMode();
+      updateWatcherCountElements();
+      loadWatcherCountsForExpandedCourses();
+      loadWatcherCountsForTrackedSections();
+    });
+    window.addEventListener('coursesnag:watcher-counts-invalidated', event => {
+      const tracker = event.detail?.tracker;
+      if (!tracker?.roster || !tracker?.classNbr) return;
+      state.watcherCounts.delete(watcherKey(tracker.roster, tracker.classNbr));
+      updateWatcherCountElements();
+      loadWatcherCountsForExpandedCourses();
+      loadWatcherCountsForTrackedSections();
+    });
     window.addEventListener('coursesnag:discord-return', event => {
       if (event.detail?.result === 'connected' && cloudIsAvailable()) {
         state.alertMode = 'cloud';
@@ -1756,13 +1960,13 @@
         cloudSetupRequested: discordSetupRequested
       })
     ).catch(error => {
-      console.error('Cloud initialization failed:', error);
+      console.error('Discord initialization failed:', error);
     });
 
-    // Cornell search data is independent of Cloud account setup, so load both in parallel.
+    // Cornell search data is independent of Discord account setup, so load both in parallel.
     await loadRosters();
 
-    // Local search and refresh can become usable without waiting for Cloud requests.
+    // Local search and refresh can become usable without waiting for Discord requests.
     els.refreshBtn.disabled = false;
     startPolling();
 

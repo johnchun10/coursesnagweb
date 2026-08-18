@@ -45,7 +45,7 @@
           <input
             type="text"
             id="search-input"
-            placeholder="Example: CS 2110, MATH, or INFO 1300"
+            placeholder="Search Machine Learning, CS 2110, or MATH"
             autocomplete="off"
             spellcheck="false"
           >
@@ -66,7 +66,7 @@
         <div id="search-status" class="status-message"></div>
 
         <div id="search-results" class="results-list">
-          <p class="empty-state">Enter a subject code, such as CS, MATH, or INFO.</p>
+          <p class="empty-state">Search by course name or code, such as Machine Learning or CS 2110.</p>
         </div>
       </section>
 
@@ -105,6 +105,12 @@
   <div id="alert-banner" class="alert-banner hidden">
     <span id="alert-message">Section is open.</span>
     <div class="alert-actions">
+      <a
+        class="btn btn-small"
+        href="http://studentcenter.cornell.edu/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >Open Student Center</a>
       <button id="dismiss-5min-btn" class="btn btn-small">Snooze for 5 minutes</button>
       <button id="untrack-alert-btn" class="btn btn-small">Untrack</button>
     </div>
@@ -125,13 +131,13 @@
           <div class="mode-choice-grid" role="group" aria-label="Alert delivery">
             <button id="choose-cloud-mode" class="mode-choice-card" type="button" data-choice="cloud" disabled>
               <span class="mode-choice-topline">
-                <span class="mode-choice-number">01 / CLOUD</span>
+                <span class="mode-choice-number">01 / DISCORD</span>
                 <span id="cloud-option-status" class="mode-choice-availability checking">
                   <span aria-hidden="true"></span>
                   <span id="cloud-option-status-text">Checking</span>
                 </span>
               </span>
-              <strong>Cloud Alerts</strong>
+              <strong>Discord Alerts</strong>
               <span class="mode-choice-description">Via Discord notifications.</span>
               <span class="mode-requirement">Requires Discord and a server</span>
               <span class="mode-choice-bottomline">
@@ -161,7 +167,7 @@
 
         <section id="cloud-settings-view" class="settings-view mode-detail-view" aria-labelledby="cloud-settings-title" hidden>
           <div class="mode-detail-heading">
-            <h3 id="cloud-settings-title">Cloud Alerts</h3>
+            <h3 id="cloud-settings-title">Discord Alerts</h3>
             <p class="cloud-setup-instruction">Connect Discord, select a server where you can add apps, and allow direct messages from server members.</p>
           </div>
 
@@ -169,7 +175,7 @@
             <div class="cloud-mode-block">
               <span id="cloud-mode-badge" class="cloud-mode-badge" data-mode="checking" aria-hidden="true"></span>
               <div class="cloud-mode-copy">
-                <strong id="cloud-mode-title">Checking cloud status</strong>
+                <strong id="cloud-mode-title">Checking Discord status</strong>
                 <span id="cloud-mode-description">Checking monitoring status.</span>
               </div>
             </div>
@@ -182,7 +188,7 @@
                   <span class="discord-account-mark" aria-hidden="true">D</span>
                   <span class="cloud-profile-copy">
                     <strong id="discord-profile-name">Discord is not connected</strong>
-                    <span id="discord-profile-detail">Connect Discord to synchronize the cloud watchlist and receive alerts.</span>
+                    <span id="discord-profile-detail">Connect Discord to synchronize your watchlist and receive alerts.</span>
                   </span>
                 </div>
 
@@ -241,9 +247,9 @@
               <span class="settings-label">Browser refresh interval</span>
               <div class="segmented" id="polling-segmented" role="radiogroup" aria-label="Browser refresh interval">
                 <div class="segment-indicator" aria-hidden="true"></div>
+                <button class="segment-btn" type="button" data-interval="60" aria-pressed="false">1m</button>
                 <button class="segment-btn" type="button" data-interval="300" aria-pressed="false">5m</button>
                 <button class="segment-btn" type="button" data-interval="600" aria-pressed="false">10m</button>
-                <button class="segment-btn" type="button" data-interval="900" aria-pressed="false">15m</button>
                 <button class="segment-btn" type="button" data-interval="1200" aria-pressed="false">20m</button>
               </div>
             </div>

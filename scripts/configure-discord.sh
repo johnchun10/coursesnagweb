@@ -98,7 +98,7 @@ if [[ "$DISCORD_STATUS" == "ONLINE" ]]; then
   COMMAND_BODY="$(jq -nc '{
     name: "tracked",
     type: 1,
-    description: "Show the courses in your CourseSnag cloud watchlist",
+    description: "Show the courses in your CourseSnag Discord watchlist",
     integration_types: [0],
     contexts: [0, 1]
   }')"

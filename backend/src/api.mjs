@@ -5,7 +5,11 @@ import {
   createDiscordAuthorization,
   resolveFrontendOrigin
 } from './discord-oauth.mjs';
-import { normalizeTrackerInput, publicTracker } from './domain.mjs';
+import {
+  normalizeTrackerCountQuery,
+  normalizeTrackerInput,
+  publicTracker
+} from './domain.mjs';
 import { sendDirectMessage } from './discord.mjs';
 import { json, parseJsonBody, redirect, route } from './http.mjs';
 import { currentMode } from './mode.mjs';
@@ -16,6 +20,7 @@ import {
   revokeSession
 } from './session.mjs';
 import {
+  countActiveTrackersForSections,
   deleteTracker,
   getProfile,
   listTrackers,
@@ -23,6 +28,50 @@ import {
   putTracker,
   upsertDiscordProfile
 } from './storage.mjs';
+
+const TRACKER_COUNT_CACHE_MS = 30_000;
+const TRACKER_COUNT_CACHE_MAX_ENTRIES = 100;
+const trackerCountCache = new Map();
+
+function trackerCountCacheKey(query) {
+  return `${query.roster}:${query.subject}:${query.classNbrs.join(',')}`;
+}
+
+async function trackerCountResponse(event) {
+  if (await currentMode() !== 'cloud') {
+    return json(503, { error: 'Discord Alerts are not active right now.' }, {
+      'retry-after': '60'
+    });
+  }
+
+  const query = normalizeTrackerCountQuery(event.queryStringParameters || {});
+  const cacheKey = trackerCountCacheKey(query);
+  const cached = trackerCountCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return json(200, cached.payload, {
+      'cache-control': 'public, max-age=30, stale-while-revalidate=30'
+    });
+  }
+
+  const payload = {
+    counts: await countActiveTrackersForSections(
+      query.roster,
+      query.subject,
+      query.classNbrs
+    ),
+    asOf: new Date().toISOString()
+  };
+  trackerCountCache.set(cacheKey, {
+    payload,
+    expiresAt: Date.now() + TRACKER_COUNT_CACHE_MS
+  });
+  if (trackerCountCache.size > TRACKER_COUNT_CACHE_MAX_ENTRIES) {
+    trackerCountCache.delete(trackerCountCache.keys().next().value);
+  }
+  return json(200, payload, {
+    'cache-control': 'public, max-age=30, stale-while-revalidate=30'
+  });
+}
 
 function publicProfile(profile) {
   if (!profile) return null;
@@ -111,6 +160,10 @@ export async function handler(event) {
       return json(200, { mode: await currentMode() });
     }
 
+    if (request.routeKey === 'GET /tracker-counts') {
+      return await trackerCountResponse(event);
+    }
+
     if (request.routeKey === 'POST /auth/discord') {
       const { returnOrigin } = parseJsonBody(event);
       return json(200, await createDiscordAuthorization(discordRedirectUri(event), returnOrigin));
@@ -174,7 +227,7 @@ export async function handler(event) {
       routeKey: request.routeKey,
       message: error.message
     });
-    const clientError = /Missing required field|unsupported characters|only digits|valid JSON|JSON object|login code is invalid|login expired|frontend origin is not allowed/i.test(error.message);
+    const clientError = /Missing required field|Missing required tracker-count|unsupported characters|only digits|at most 100 sections|valid JSON|JSON object|login code is invalid|login expired|frontend origin is not allowed/i.test(error.message);
     return json(clientError ? 400 : 500, {
       error: clientError ? error.message : 'The CourseSnag service could not complete this request.'
     });

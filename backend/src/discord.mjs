@@ -59,19 +59,19 @@ function courseName(tracker) {
 export function notificationContent(message) {
   if (message.type === 'season-offline') {
     return {
-      content: 'CourseSnag cloud tracking is currently **OFFLINE**. We will return before the next enrollment period!'
+      content: 'CourseSnag Discord tracking is currently **OFFLINE**. We will return before the next enrollment period!'
     };
   }
 
   if (message.type === 'season-online') {
     return {
-      content: 'CourseSnag cloud tracking is back **ONLINE**! Track your courses at https://coursesnag.pages.dev'
+      content: 'CourseSnag Discord tracking is back **ONLINE**! Track your courses at https://coursesnag.pages.dev'
     };
   }
 
   if (message.type === 'connection-confirmed') {
     return {
-      content: '✅ **CourseSnag is connected.**\nYour Discord account is ready for cloud watchlist sync and course alerts.'
+      content: '✅ **CourseSnag is connected.**\nYour Discord account is ready for watchlist sync and course alerts.'
     };
   }
 

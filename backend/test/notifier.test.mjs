@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { shouldDeliverNotification } from '../src/notifier.mjs';
 
-test('suppresses course alerts outside Cloud Active while preserving account and season messages', () => {
+test('suppresses course alerts outside Discord Active while preserving account and season messages', () => {
   assert.equal(shouldDeliverNotification({ type: 'course-opened' }, 'local'), false);
   assert.equal(shouldDeliverNotification({ type: 'course-not-open' }, 'stopping'), false);
   assert.equal(shouldDeliverNotification({ type: 'course-opened' }, 'cloud'), true);

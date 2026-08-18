@@ -60,7 +60,7 @@ test('formats a private tracked-course summary', () => {
   assert.doesNotMatch(content, /Class #/);
   assert.doesNotMatch(content, /12345/);
   assert.doesNotMatch(content, /coursesnag\.pages\.dev/);
-  assert.match(trackedCoursesContent([]), /cloud watchlist is empty/);
+  assert.match(trackedCoursesContent([]), /Discord watchlist is empty/);
 });
 
 test('uses a generic response for a command cached during shutdown', () => {
