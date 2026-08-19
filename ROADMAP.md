@@ -33,6 +33,7 @@ Keep the Cloudflare Pages tracker available year-round in Local Standby, and man
 - [x] Automatic synchronization on load, refresh, add, and removal.
 - [x] Unique seasonal alert identities so rapid OFFLINE/ONLINE rehearsals are not deduplicated by SQS.
 - [x] Detailed owner status command with health, usage, queue, monitor, error, and budget summaries.
+- [x] Private CloudWatch operations dashboard for API, Discord, monitor, queue, latency, and recent delivery activity.
 - [x] Daily active users measured as unique linked users making authenticated Discord-service requests in the previous 24 hours.
 - [x] Persistent Discord application-description status synchronized by seasonal controls and deployments.
 - [x] Discord callback and encrypted bot/client credentials.
@@ -121,8 +122,9 @@ The target measures latency after Cornell publishes a change. Cornell notes that
 - [x] Show an aggregate section-level count, matching the unit users actually track and avoiding double-counting a person across a course's sections.
 - [x] Label the value **Discord watchers**, because Local-mode watchlists never leave the browser and cannot be counted accurately.
 - [x] Derive counts from the existing active-tracker GSI with paginated queries and distinct user aggregation; return no user identifiers.
-- [x] Cache responses for 30 seconds, throttle the public endpoint, load counts lazily, and hide them when Discord monitoring is unavailable.
-- [x] Verify count rendering in expanded search results, tracked cards, and mobile layout with a mocked aggregate response.
+- [x] Cache responses for 30 seconds, throttle the public endpoint, request counts only for tracked cards, and hide them when Discord monitoring is unavailable.
+- [x] Show counts only in **Tracked classes** after a user chooses to track a section; keep search-result rows count-free.
+- [x] Verify tracked-card count rendering and mobile layout with a mocked aggregate response.
 - [ ] Add a maintained counter/index only if measured traffic makes derived counts too expensive; pair any counter with transactional writes and reconciliation to prevent drift.
 
 ### Phase 4: canceled mobile expansion; Student Center handoff retained

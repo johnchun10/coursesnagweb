@@ -387,6 +387,206 @@ Resources:
       AlarmActions:
         - !Ref OperationsAlertTopic
 
+  OperationsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub CourseSnag-Operations-${StageName}
+      DashboardBody: !Sub |
+        {
+          "start": "-PT24H",
+          "periodOverride": "inherit",
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 2,
+              "properties": {
+                "markdown": "# CourseSnag Operations\nPrivate owner view for AWS and Discord monitoring. The dashboard opens to the previous 24 hours; website visitor traffic remains in Cloudflare Web Analytics."
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 2,
+              "width": 8,
+              "height": 4,
+              "properties": {
+                "title": "Service activity",
+                "view": "singleValue",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "setPeriodToTimeRange": true,
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${ApiFunction}", {"label": "Website API"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${InteractionsFunction}", {"label": "Discord commands"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${MonitorFunction}", {"label": "Monitor"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${NotifierFunction}", {"label": "Notifier"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${OperationsFunction}", {"label": "Owner operations"}]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8,
+              "y": 2,
+              "width": 8,
+              "height": 4,
+              "properties": {
+                "title": "Errors and throttles",
+                "view": "singleValue",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "setPeriodToTimeRange": true,
+                "metrics": [
+                  ["AWS/Lambda", "Errors", "FunctionName", "${ApiFunction}", {"label": "API errors"}],
+                  ["AWS/Lambda", "Errors", "FunctionName", "${InteractionsFunction}", {"label": "Command errors"}],
+                  ["AWS/Lambda", "Errors", "FunctionName", "${MonitorFunction}", {"label": "Monitor errors"}],
+                  ["AWS/Lambda", "Errors", "FunctionName", "${NotifierFunction}", {"label": "Notifier errors"}],
+                  ["AWS/Lambda", "Errors", "FunctionName", "${OperationsFunction}", {"label": "Operations errors"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${ApiFunction}", {"label": "API throttles"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${InteractionsFunction}", {"label": "Command throttles"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${MonitorFunction}", {"label": "Monitor throttles"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${NotifierFunction}", {"label": "Notifier throttles"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${OperationsFunction}", {"label": "Operations throttles"}]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16,
+              "y": 2,
+              "width": 8,
+              "height": 4,
+              "properties": {
+                "title": "Alert queue depth",
+                "view": "singleValue",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "setPeriodToTimeRange": true,
+                "metrics": [
+                  ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${AlertQueue.QueueName}", {"label": "Pending", "stat": "Maximum"}],
+                  ["AWS/SQS", "ApproximateNumberOfMessagesNotVisible", "QueueName", "${AlertQueue.QueueName}", {"label": "In flight", "stat": "Maximum"}],
+                  ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${AlertDeadLetterQueue.QueueName}", {"label": "Dead-lettered", "stat": "Maximum"}]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Activity over time",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${ApiFunction}", {"label": "Website API"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${InteractionsFunction}", {"label": "Discord commands"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${MonitorFunction}", {"label": "Monitor"}],
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${NotifierFunction}", {"label": "Notifier"}]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "p95 function duration",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "p95",
+                "period": 300,
+                "yAxis": {"left": {"label": "Milliseconds", "showUnits": false}},
+                "metrics": [
+                  ["AWS/Lambda", "Duration", "FunctionName", "${ApiFunction}", {"label": "Website API"}],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${InteractionsFunction}", {"label": "Discord commands"}],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${MonitorFunction}", {"label": "Monitor"}],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${NotifierFunction}", {"label": "Notifier"}]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "HTTP API responses",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [
+                  ["AWS/ApiGateway", "Count", "ApiId", "${CourseSnagApi}", "Stage", "${StageName}", {"label": "Requests"}],
+                  ["AWS/ApiGateway", "4xx", "ApiId", "${CourseSnagApi}", "Stage", "${StageName}", {"label": "4xx"}],
+                  ["AWS/ApiGateway", "5xx", "ApiId", "${CourseSnagApi}", "Stage", "${StageName}", {"label": "5xx"}]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Alert delivery throughput",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [
+                  ["AWS/SQS", "NumberOfMessagesSent", "QueueName", "${AlertQueue.QueueName}", {"label": "Queued"}],
+                  ["AWS/SQS", "NumberOfMessagesDeleted", "QueueName", "${AlertQueue.QueueName}", {"label": "Delivered/deleted"}],
+                  ["AWS/SQS", "NumberOfMessagesSent", "QueueName", "${AlertDeadLetterQueue.QueueName}", {"label": "Sent to DLQ"}]
+                ]
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Recent monitor results",
+                "region": "${AWS::Region}",
+                "view": "table",
+                "query": "SOURCE '/aws/lambda/${MonitorFunction}' | fields @timestamp, @message | filter @message like /Monitor run complete|Monitor cycle failed|Cornell group processing failed/ | sort @timestamp desc | limit 40"
+              }
+            },
+            {
+              "type": "log",
+              "x": 12,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Recent Discord deliveries",
+                "region": "${AWS::Region}",
+                "view": "table",
+                "query": "SOURCE '/aws/lambda/${NotifierFunction}' | fields @timestamp, @message | filter @message like /Discord notification accepted|Discord notification failed/ | sort @timestamp desc | limit 40"
+              }
+            }
+          ]
+        }
+      Tags:
+        - Key: Project
+          Value: CourseSnag
+        - Key: Environment
+          Value: !Ref StageName
+
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -479,6 +679,10 @@ Outputs:
     Value: !Ref MonitorFunction
   OperationsFunctionName:
     Value: !Ref OperationsFunction
+  OperationsDashboardName:
+    Value: !Ref OperationsDashboard
+  OperationsDashboardUrl:
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${OperationsDashboard}
   ModeParameterName:
     Value: !Ref ModeParameter
   AlertQueueUrl:

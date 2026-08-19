@@ -704,7 +704,6 @@
     }
 
     els.searchResults.innerHTML = html || '<p class="empty-state">No sections found.</p>';
-    void loadWatcherCountsForExpandedCourses();
   }
 
   function getCourseId(course) {
@@ -747,7 +746,7 @@
 
   function updateWatcherCountElements() {
     const available = discordCountsAreAvailable();
-    for (const element of document.querySelectorAll('[data-watcher-key]')) {
+    for (const element of els.trackedList.querySelectorAll('[data-watcher-key]')) {
       const cached = state.watcherCounts.get(element.dataset.watcherKey);
       const hasFreshCount = cached && cached.expiresAt > Date.now();
       element.hidden = !available || !hasFreshCount;
@@ -801,22 +800,6 @@
     await request;
   }
 
-  function loadWatcherCountsForExpandedCourses() {
-    const discordState = window.CourseSnagCloud?.getState?.();
-    if (discordState?.modeChecked && discordState.mode !== 'cloud') {
-      updateWatcherCountElements();
-      return;
-    }
-    for (const course of state.searchResults) {
-      if (!state.expandedCourses.has(getCourseId(course))) continue;
-      void loadWatcherCounts(
-        state.currentRoster,
-        course.subject,
-        getCourseSections(course).map(section => section.classNbr)
-      );
-    }
-  }
-
   function loadWatcherCountsForTrackedSections() {
     const groups = new Map();
     for (const tracker of state.trackedSections) {
@@ -842,10 +825,7 @@
         <span class="section-number">${section.section}</span>
         <span class="badge badge-component">${section.ssrComponent}</span>
         <span class="badge badge-status ${statusClass}">${statusLabel}</span>
-        <span class="section-details">
-          <span class="section-time" title="${escapeAttr(classTime)}">${escapeHtml(classTime)}</span>
-          <span class="section-watchers" data-watcher-key="${escapeAttr(trackKey)}" hidden></span>
-        </span>
+        <span class="section-time" title="${escapeAttr(classTime)}">${escapeHtml(classTime)}</span>
         <div class="section-actions">
           <button
             class="btn btn-small ${isTracked ? 'btn-secondary' : 'btn-primary'}"
@@ -901,6 +881,7 @@
             <div class="tracked-course">${item.subject} ${item.catalogNbr}</div>
             <div class="tracked-section">
               Section ${item.section}
+              <span class="tracked-class-number">Class #${escapeHtml(item.classNbr)}</span>
               <span class="badge badge-component">${item.ssrComponent}</span>
               <span class="badge badge-status ${statusClass}">${statusLabel}</span>
               ${item.classTime ? `<span class="tracked-time" title="${escapeAttr(item.classTime)}">${escapeHtml(item.classTime)}</span>` : ''}
@@ -1236,16 +1217,6 @@
     card.classList.toggle('expanded', shouldExpand);
     card.querySelector('[data-action="toggle-course"]')
       ?.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
-    if (shouldExpand) {
-      const course = state.searchResults.find(result => getCourseId(result) === courseId);
-      if (course) {
-        void loadWatcherCounts(
-          state.currentRoster,
-          course.subject,
-          getCourseSections(course).map(section => section.classNbr)
-        );
-      }
-    }
   }
 
   // ============================================
@@ -1920,7 +1891,6 @@
     window.addEventListener('coursesnag:cloud-state', () => {
       renderAlertMode();
       updateWatcherCountElements();
-      loadWatcherCountsForExpandedCourses();
       loadWatcherCountsForTrackedSections();
     });
     window.addEventListener('coursesnag:watcher-counts-invalidated', event => {
@@ -1928,7 +1898,6 @@
       if (!tracker?.roster || !tracker?.classNbr) return;
       state.watcherCounts.delete(watcherKey(tracker.roster, tracker.classNbr));
       updateWatcherCountElements();
-      loadWatcherCountsForExpandedCourses();
       loadWatcherCountsForTrackedSections();
     });
     window.addEventListener('coursesnag:discord-return', event => {

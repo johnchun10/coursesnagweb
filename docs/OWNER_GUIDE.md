@@ -94,6 +94,12 @@ Run them from the project directory on the Mac where the AWS CLI profile is conf
 
 `status` is the owner dashboard. It reports monitoring state, API health, Discord-account and tracker counts, unique daily active users, the last monitor result, alert queue and dead-letter counts, invocation/error totals for the last 24 hours, and annual budget usage. A daily active user is a unique linked Discord account that signed in, used the Discord-backed website features, or ran `/tracked` during the previous 24 hours. The command is read-only and does not send Discord messages or change monitoring mode. AWS billing totals can lag by about 24 hours.
 
+### Visual operations dashboard
+
+The stack creates a private CloudWatch dashboard named `CourseSnag-Operations-dev`. Open **CloudWatch → Dashboards → CourseSnag-Operations-dev** in the AWS console. It defaults to the previous 24 hours and visualizes website-API and Discord activity, Lambda errors and throttles, function duration, HTTP response codes, alert-queue depth and throughput, and recent monitor and notifier logs. Website visits and page views remain in Cloudflare Web Analytics.
+
+The dashboard references fewer than 50 metrics. It is the account's first custom dashboard, so it fits within AWS's current allowance of three free custom dashboards with up to 50 metrics each. Log-table widgets run CloudWatch Logs Insights queries when the dashboard is viewed and can incur small query charges.
+
 Inspect quarantined alerts without changing them with `./scripts/dead-letters.sh inspect`. Permanently clear the dead-letter queue with `./scripts/dead-letters.sh purge`; the command requires typing `PURGE` and does not replay messages.
 
 The Discord bot uses on-demand HTTP requests, not a continuously connected Discord Gateway process. Its Discord presence dot therefore appears offline in both seasonal modes. The persistent `Status: ONLINE` or `Status: OFFLINE` application-description line and the most recent seasonal DM communicate the actual CourseSnag monitoring state without adding a continuously running AWS service.
